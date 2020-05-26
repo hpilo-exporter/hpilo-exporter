@@ -1,6 +1,9 @@
 # HP iLO Metrics Exporter
 
-Blackbox likes exporter used to exports HP Server Integrated Lights Out (iLO) states to Prometheus.
+Blackbox likes exporter used to exports HP Server Integrated Lights Out (iLO) states to Prometheus.  
+Added support for Python 3.6.  
+ilo_user, ilo_password, ilo_port may be preset via environment.  
+Added storage health information from iLO (cache, controller, logical drives, physical drives).  
 
 ### Gauges
 
@@ -128,10 +131,11 @@ Assuming:
 - job_name: 'hpilo'
   scrape_interval: 1m
   scrape_timeout: 30s
-  params: []
-    # ilo_port: ['443']                 # may be set in exporter ENV
-    # ilo_user: ['my_ilo_user']         # may be set in exporter ENV
-    # ilo_password: ['my_ilo_password'] # may be set in exporter ENV
+  params: 
+    ilo_host: ['']
+    #ilo_port: ['443']                 # may be set in exporter ENV
+    #ilo_user: ['my_ilo_user']         # may be set in exporter ENV
+    #ilo_password: ['my_ilo_password'] # may be set in exporter ENV
   static_configs:
     - targets:
       - ilo_fqdn.domain

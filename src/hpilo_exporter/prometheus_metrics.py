@@ -16,6 +16,12 @@ hpilo_processor_gauge = Gauge('hpilo_processor', 'HP iLO processor status', ["pr
 hpilo_network_gauge = Gauge('hpilo_network', 'HP iLO network status', ["product_name", "server_name"])
 hpilo_temperature_gauge = Gauge('hpilo_temperature', 'HP iLO temperature status', ["product_name", "server_name"])
 hpilo_firmware_version = Gauge('hpilo_firmware_version', 'HP iLO firmware version', ["product_name", "server_name"])
+hpilo_nic_status_gauge = Gauge('hpilo_nic_status', 'HP iLO NIC status', ["product_name", "server_name", "nic_name", "ip_address"])
+hpilo_storage_cache_health_gauge = Gauge('hpilo_storage_cache_health', 'Cache Module status', ["product_name", "server_name", "controller"])
+hpilo_storage_controller_health_gauge = Gauge('hpilo_storage_controller_health', 'Controller status', ["product_name", "server_name", "controller"])
+hpilo_storage_enclosure_health_gauge = Gauge('hpilo_storage_enclosure_health', 'Enclosure status', ["product_name", "server_name", "controller", "enc"])
+hpilo_storage_ld_health_gauge = Gauge('hpilo_storage_ld_health', 'LD status', ["product_name", "server_name", "controller","logical_drive"])
+hpilo_storage_pd_health_gauge = Gauge('hpilo_storage_pd_health', 'PD status', ["product_name", "server_name", "controller", "logical_drive", "physical_drive"])
 
 gauges = {
     'hpilo_vrm_gauge': hpilo_vrm_gauge,
@@ -30,4 +36,10 @@ gauges = {
     'hpilo_network_gauge': hpilo_network_gauge,
     'hpilo_temperature_gauge': hpilo_temperature_gauge,
     'hpilo_firmware_version': hpilo_firmware_version,
+    'hpilo_nic_status_gauge' : hpilo_nic_status_gauge,
+    'hpilo_storage_cache_health_gauge': hpilo_storage_cache_health_gauge,
+    'hpilo_storage_controller_health_gauge': hpilo_storage_controller_health_gauge,
+    'hpilo_storage_enclosure_health_gauge': hpilo_storage_enclosure_health_gauge,
+    'hpilo_storage_ld_health_gauge': hpilo_storage_ld_health_gauge,
+    'hpilo_storage_pd_health_gauge': hpilo_storage_pd_health_gauge,
 }

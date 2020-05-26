@@ -5,16 +5,23 @@ from __future__ import print_function
 from _socket import gaierror
 import sys
 import hpilo
-
+import ssl
 import time
+import os
 import prometheus_metrics
-from BaseHTTPServer import BaseHTTPRequestHandler
-from BaseHTTPServer import HTTPServer
-from SocketServer import ForkingMixIn
 from prometheus_client import generate_latest, Summary
-from urlparse import parse_qs
-from urlparse import urlparse
-
+try:
+    from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+    from SocketServer import ForkingMixIn
+    from urllib2 import build_opener, Request, HTTPHandler
+    from urllib import quote_plus
+    from urlparse import parse_qs, urlparse
+except ImportError:
+    # Python 3
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from socketserver import ForkingMixIn
+    from urllib.request import build_opener, Request, HTTPHandler
+    from urllib.parse import quote_plus, parse_qs, urlparse
 
 def print_err(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -57,31 +64,43 @@ class RequestHandler(BaseHTTPRequestHandler):
         ilo_user = None
         ilo_password = None
         try:
-            ilo_host = query_components['ilo_host'][0]
-            ilo_port = int(query_components['ilo_port'][0])
-            ilo_user = query_components['ilo_user'][0]
-            ilo_password = query_components['ilo_password'][0]
-        except KeyError, e:
+            ilo_host = query_components.get('ilo_host', [''])[0] or os.environ['ilo_host']
+            ilo_user = query_components.get('ilo_user', [''])[0] or os.environ['ilo_user']
+            ilo_password = query_components.get('ilo_password', [''])[0] or os.environ['ilo_password']
+        except KeyError as e:
             print_err("missing parameter %s" % e)
             self.return_error()
             error_detected = True
+        try:
+            ilo_port = int(query_components.get('ilo_port', [''])[0] or os.environ['ilo_port'])
+        except KeyError as e:
+            ilo_port = 443
 
         if url.path == self.server.endpoint and ilo_host and ilo_user and ilo_password and ilo_port:
 
             ilo = None
+            ilo = None
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            # Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
+            ssl_context.options &= ~ssl.OP_NO_SSLv3
+            ssl_context.check_hostname = False
+            ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
+                                     'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
+                                     '!eNULL:!MD5'))
             try:
                 ilo = hpilo.Ilo(hostname=ilo_host,
                                 login=ilo_user,
                                 password=ilo_password,
-                                port=ilo_port, timeout=10)
+                                port=ilo_port, timeout=10, ssl_context=ssl_context)
             except hpilo.IloLoginFailed:
                 print("ILO login failed")
                 self.return_error()
             except gaierror:
                 print("ILO invalid address or port")
                 self.return_error()
-            except hpilo.IloCommunicationError, e:
+            except hpilo.IloCommunicationError as e:
                 print(e)
+                return None
 
             # get product and server name
             try:
@@ -99,7 +118,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             # get health
             embedded_health = ilo.get_embedded_health()
             health_at_glance = embedded_health['health_at_a_glance']
-            
+
             if health_at_glance is not None:
                 for key, value in health_at_glance.items():
                     for status in value.items():
@@ -114,22 +133,75 @@ class RequestHandler(BaseHTTPRequestHandler):
                             else:
                                 prometheus_metrics.gauges[gauge].labels(product_name=product_name,
                                                                         server_name=server_name).set(2)
+            #added by Alexander Golikov for disk status capture
+            def translate(st):
+                if st.upper() == 'OK':
+                    return 0
+                elif st.upper() == 'DEGRADED':
+                    return 1
+                else:
+                    return 2
+
+            try:
+                storage_health = embedded_health.get('storage',{})
+                for ckey, cvalue in storage_health.items():
+                    cmodel = ckey + ', ' + cvalue.get('model','')
+                    cache_health = cvalue.get('cache_module_status','unknown')
+                    prometheus_metrics.gauges['hpilo_storage_cache_health_gauge'].labels(product_name=product_name,
+                                                                                         server_name=server_name,controller=cmodel).set(translate(cache_health))
+                    controller_health = cvalue.get('controller_status','unknown')
+                    prometheus_metrics.gauges['hpilo_storage_controller_health_gauge'].labels(product_name=product_name,
+                                                                                              server_name=server_name,controller=cmodel).set(translate(controller_health))
+                    ekey = 0
+                    enlist = cvalue.get('drive_enclosures',[])
+                    if enlist is not None:
+                        for evalue in enlist:
+                            enclosure_health = evalue.get('status','unknown')
+                            prometheus_metrics.gauges['hpilo_storage_enclosure_health_gauge'].labels(product_name=product_name,
+                                                                                                     server_name=server_name, controller=cmodel, enc=ekey).set(translate(enclosure_health))
+                            ekey = ekey + 1
+                    ldlist = cvalue.get('logical_drives',[])
+                    if ldlist is not None:
+                        ldkey=0
+                        for ldvalue in ldlist:
+                            ld_status = ldvalue.get('status','unknown')
+                            ld_name = 'LD_'  + str(ldkey) + ', ' + ldvalue.get('capacity','') + ', ' + ldvalue.get('fault_tolerance','')
+                            prometheus_metrics.gauges['hpilo_storage_ld_health_gauge'].labels(product_name=product_name,
+                                                                                              server_name=server_name, controller=cmodel, logical_drive=ld_name).set(translate(ld_status))
+
+                            pdlist=ldvalue.get('physical_drives',[])
+                            if pdlist is not None:
+                                pdkey=0
+                                for pdvalue in pdlist:
+                                    pd_status = pdvalue.get('status','unknown')
+                                    pd_name = pdvalue.get('model','') + ', ' + pdvalue.get('capacity','') + ', ' + pdvalue.get('location','N'+str(pdkey))
+                                    prometheus_metrics.gauges['hpilo_storage_pd_health_gauge'].labels(product_name=product_name,
+                                                                                                      server_name=server_name, controller=cmodel, logical_drive=ld_name, physical_drive=pd_name).set(translate(pd_status))
+                                    pdkey = pdkey + 1
+                            ldkey = ldkey + 1
+
+            except ValueError as e:
+                print(e)
+                return None
+            #end of addon
+
+
             #for iLO3 patch network
             if ilo.get_fw_version()["management_processor"] == 'iLO3':
                 print_err('Unknown iLO nic status')
             else:
                 # get nic information
                 for nic_name,nic in embedded_health['nic_information'].items():
-                   try:
-                       value = ['OK','Disabled','Unknown','Link Down'].index(nic['status'])
-                   except ValueError:
-                       value = 4
-                       print_err('unrecognised nic status: {}'.format(nic['status']))
+                    try:
+                        value = ['OK','Disabled','Unknown','Link Down'].index(nic['status'])
+                    except ValueError:
+                        value = 4
+                        print_err('unrecognised nic status: {}'.format(nic['status']))
 
-                   prometheus_metrics.hpilo_nic_status_gauge.labels(product_name=product_name,
-                                                                    server_name=server_name,
-                                                                    nic_name=nic_name,
-                                                                    ip_address=nic['ip_address']).set(value)
+                    prometheus_metrics.hpilo_nic_status_gauge.labels(product_name=product_name,
+                                                                     server_name=server_name,
+                                                                     nic_name=nic_name,
+                                                                     ip_address=nic['ip_address']).set(value)
 
             # get firmware version
             fw_version = ilo.get_fw_version()["firmware_version"]

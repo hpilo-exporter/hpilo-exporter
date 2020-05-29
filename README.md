@@ -55,6 +55,7 @@ hpilo_storage_enclosure_health{controller="Controller on System Board, Smart Arr
 hpilo_storage_ld_health{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
 hpilo_storage_pd_health{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",physical_drive="EG0300FCSPH, 279 GiB, Port 1I Box 1 Bay 1",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
 hpilo_storage_pd_health{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",physical_drive="EG0300FCSPH, 279 GiB, Port 1I Box 1 Bay 2",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_temperature_value{product_name="ProLiant BL460c Gen8",sensor="01-Inlet Ambient",server_name="name.fqdn.domain"} 19.0
 ```
 
 ### Installing

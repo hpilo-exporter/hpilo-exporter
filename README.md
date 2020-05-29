@@ -4,14 +4,16 @@ Blackbox likes exporter used to exports HP Server Integrated Lights Out (iLO) st
 Added support for Python 3.6.  
 ilo_user, ilo_password, ilo_port may be preset via environment.  
 Added storage health information from iLO (cache, controller, logical drives, physical drives).  
+Added temperature values information from iLO.  
 
 ### Gauges
 
 Here are the status code of gauge
 ```
-0 - OK
-1 - Degraded
-2 - Dead (Other)
+-1 - Absent
+ 0 - OK
+ 1 - Degraded
+ 2 - Dead (Other)
 ```
 
 

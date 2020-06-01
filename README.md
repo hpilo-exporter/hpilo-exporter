@@ -1,10 +1,14 @@
 # HP iLO Metrics Exporter
 
-Blackbox likes exporter used to exports HP Server Integrated Lights Out (iLO) states to Prometheus.  
-Added support for Python 3.6.  
-ilo_user, ilo_password, ilo_port may be preset via environment.  
-Added storage health information from iLO (cache, controller, logical drives, physical drives).  
-Added temperature values information from iLO.  
+Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus.  
+ - support for Python 3.6.  
+ - ilo_user, ilo_password, ilo_port may be preset via environment.  
+ - storage health information from iLO (cache, controller, logical drives, physical drives).  
+ -  temperature values information from iLO.
+ - per-fan and per-power-supply statuses.
+ - OA info for Blade servers
+ - Server ON status.
+  
 
 ### Gauges
 

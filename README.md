@@ -37,25 +37,31 @@ health_at_a_glance:
 
 The returned output would be:
 ```
-hpilo_battery{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_storage{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 1.0
-hpilo_fans{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_bios_hardware{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_memory{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_power_supplies{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_processor{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_network{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 2.0
-hpilo_temperature{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_vrm{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_drive{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_firmware_version{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 2.5
-hpilo_storage_cache_health{controller="Controller on System Board, Smart Array P220i Controller",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 1.0
-hpilo_storage_controller_health{controller="Controller on System Board, Smart Array P220i Controller",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_storage_enclosure_health{controller="Controller on System Board, Smart Array P220i Controller",enc="0",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_storage_ld_health{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_storage_pd_health{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",physical_drive="EG0300FCSPH, 279 GiB, Port 1I Box 1 Bay 1",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
-hpilo_storage_pd_health{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",physical_drive="EG0300FCSPH, 279 GiB, Port 1I Box 1 Bay 2",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_battery_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_storage_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 1.0
+hpilo_fans_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_bios_hardware_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_memory_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_power_supplies_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_processor_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_network_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 2.0
+hpilo_temperature_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_vrm_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_drive_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_firmware_version{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 2.6
+hpilo_storage_cache_health_status{controller="Controller on System Board, Smart Array P220i Controller",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 1.0
+hpilo_storage_controller_health_status{controller="Controller on System Board, Smart Array P220i Controller",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_storage_enclosure_health_status{controller="Controller on System Board, Smart Array P220i Controller",enc="0",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_storage_ld_health_status{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_storage_pd_health_status{controller="Controller on System Board, Smart Array P220i Controller",logical_drive="LD_0, 279 GiB, RAID 1/RAID 1+0",physical_drive="EG0300FCSPH, 279 GiB, Port 1I Box 1 Bay 1",product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
 hpilo_temperature_value{product_name="ProLiant BL460c Gen8",sensor="01-Inlet Ambient",server_name="name.fqdn.domain"} 19.0
+hpilo_fan_status{fan="Fan 7",product_name="ProLiant DL360e Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_fan_speed{fan="Fan 7",product_name="ProLiant DL360e Gen8",server_name="name.fqdn.domain"} 29.0
+hpilo_power_supply_status{product_name="ProLiant DL360e Gen8",ps="Power Supply 2",server_name="name.fqdn.domain"} 0.0
+hpilo_running_status{product_name="ProLiant DL360e Gen8",server_name="name.fqdn.domain"} 0.0
+hpilo_onboard_administrator_info{encl="c7000name",location_bay="7",oa_ip="192.168.1.1",product_name="ProLiant BL460c Gen8",server_name="name2.fqdn.domain"} 0.0
+
+
 ```
 
 ### Installing

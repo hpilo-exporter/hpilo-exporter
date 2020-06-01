@@ -1,0 +1,39 @@
+groups:
+  - name: 'HPiLO Exporter alerts'
+    rules:
+      - alert: 'hPiLO exporter'
+        expr: up{job="hpilo"} == 0
+        for: 3m
+        labels:
+          severity: 'warning'
+        annotations:
+          title: 'HPiLO exporter'
+          description: 'Exporter seems down.'
+
+      - alert: 'HPiLO_Temperature'
+        expr: 'min(hpilo_temperature_value{job="hpilo"} > 0) without (sensor) > 30'
+        for: 3m
+        labels:
+          severity: 'warning'
+        annotations:
+          title: 'High Temperature'
+          description: 'High temperature detected ({{ $value | humanize }}C)'
+
+      - alert: 'HWstatus'
+        expr: '{job="hpilo", __name__=~"hpilo_.*status", __name__!~"hpilo_nic_status|hpilo_network_status"} > 0'
+        for: 3m
+        labels:
+          severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"
+          metric: '{{ .Labels.__name__ }}'
+          vsp: "{{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}{{ . | first | label \"encl\" }}{{end}}"
+        annotations:
+          title: '{{ .Labels.__name__ }} status'
+          description: "{{ .Labels.__name__ }} is
+                        {{      if eq ($value | humanize) \"0\" }}'ok'
+                        {{ else if eq ($value | humanize) \"1\" }}'warning'
+                        {{ else if eq ($value | humanize) \"2\" }}'critical'
+                        {{else}}'unknown'
+                        {{ end }}({{ $value | printf \"%.0f\" }}).
+                        {{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}
+                          Blade Enclosure {{ . | first | label \"encl\" }}, OA_IP {{ . | first | label \"oa_ip\" }}, Bay {{ . | first | label \"location_bay\" }}
+                        {{end}}"

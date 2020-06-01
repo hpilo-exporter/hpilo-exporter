@@ -34,7 +34,7 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def translate(st):
-    if st.upper() == 'OK':
+    if st.upper() in ['OK', 'GOOD, IN USE', 'ON']:
         return 0
     elif st.upper() == 'DEGRADED':
         return 1
@@ -44,87 +44,171 @@ def translate(st):
         return 2
 
 
-def watch_health_at_glance(embedded_health, gauges, product_name, server_name):
-    health_at_glance = embedded_health['health_at_a_glance']
-    if health_at_glance is not None:
-        for key, value in health_at_glance.items():
-            for status in value.items():
-                if status[0] == 'status':
-                    gauge = 'hpilo_{}_gauge'.format(key)
-                    health = status[1].upper()
-                    gauges[gauge].labels(product_name=product_name,
-                                         server_name=server_name).set(translate(health))
-
-
-def watch_disks(embedded_health, gauges, product_name, server_name):
-    storage_health = embedded_health.get('storage', {})
-    for c_key, cvalue in storage_health.items():
-        c_model = c_key + ', ' + cvalue.get('model', '')
-        cache_health = cvalue.get('cache_module_status', 'absent')
-        gauges['hpilo_storage_cache_health_gauge'].labels(product_name=product_name,
-                                                          server_name=server_name,
-                                                          controller=c_model).set(
-            translate(cache_health))
-        controller_health = cvalue.get('controller_status', 'unknown')
-        gauges['hpilo_storage_controller_health_gauge'].labels(product_name=product_name,
-                                                               server_name=server_name,
-                                                               controller=c_model).set(
-            translate(controller_health))
-        e_key = 0
-        enlist = cvalue.get('drive_enclosures', [])
-        if enlist is not None:
-            for e_value in enlist:
-                enclosure_health = e_value.get('status', 'unknown')
-                gauges['hpilo_storage_enclosure_health_gauge'].labels(product_name=product_name,
-                                                                      server_name=server_name,
-                                                                      controller=c_model,
-                                                                      enc=e_key).set(
-                    translate(enclosure_health))
-                e_key = e_key + 1
-        ld_list = cvalue.get('logical_drives', [])
-        if ld_list is not None:
-            ld_key = 0
-            for ld_value in ld_list:
-                ld_status = ld_value.get('status', 'unknown')
-                ld_name = 'LD_' + str(ld_key) + ', ' + ld_value.get('capacity', '') + ', ' + ld_value.get(
-                    'fault_tolerance', '')
-                gauges['hpilo_storage_ld_health_gauge'].labels(product_name=product_name,
-                                                               server_name=server_name,
-                                                               controller=c_model,
-                                                               logical_drive=ld_name).set(
-                    translate(ld_status))
-
-                pd_list = ld_value.get('physical_drives', [])
-                if pd_list is not None:
-                    pd_key = 0
-                    for pd_value in pd_list:
-                        pd_status = pd_value.get('status', 'unknown')
-                        pd_name = pd_value.get('model', '') + ', ' + pd_value.get('capacity', '') + ', ' + \
-                                  pd_value.get('location', 'N' + str(pd_key))
-                        gauges['hpilo_storage_pd_health_gauge'].labels(product_name=product_name,
-                                                                       server_name=server_name,
-                                                                       controller=c_model,
-                                                                       logical_drive=ld_name,
-                                                                       physical_drive=pd_name).set(
-                            translate(pd_status))
-                        pd_key = pd_key + 1
-                ld_key = ld_key + 1
-
-
-def watch_temperature(embedded_health, gauges, product_name, server_name):
-    temperature_values = embedded_health.get('temperature', {})
-    for t_key, t_value in temperature_values.items():
-        s_name = t_key
-        s_value = t_value.get('currentreading', 'N/A')
-        if type(s_value[0]) is int:
-            gauges['hpilo_temperature_value_gauge'].labels(product_name=product_name, server_name=server_name,
-                                                           sensor=s_name).set(int(s_value[0]))
-
-
 class RequestHandler(BaseHTTPRequestHandler):
     """
     Endpoint handler
     """
+    # P is all metrics prefix
+    P = 'hpilo_'
+
+    def __init__(self, request, client_address, server):
+
+        self.registry = None
+        self.registry = CollectorRegistry(self)
+        self.process_registry = REGISTRY
+        self.gauges = {
+            'vrm': Gauge(self.P + 'vrm_status', 'HP iLO vrm status',
+                         ["product_name", "server_name"], registry=self.registry),
+            'drive': Gauge(self.P + 'drive_status', 'HP iLO drive status',
+                           ["product_name", "server_name"], registry=self.registry),
+            'battery': Gauge(self.P + 'battery_status', 'HP iLO battery status',
+                             ["product_name", "server_name"], registry=self.registry),
+            'storage': Gauge(self.P + 'storage_status', 'HP iLO storage status',
+                             ["product_name", "server_name"], registry=self.registry),
+            'fans': Gauge(self.P + 'fans_status', 'HP iLO all fans status',
+                          ["product_name", "server_name"], registry=self.registry),
+            'bios_hardware': Gauge(self.P + 'bios_hardware_status', 'HP iLO bios_hardware status',
+                                   ["product_name", "server_name"], registry=self.registry),
+            'memory': Gauge(self.P + 'memory_status', 'HP iLO memory status',
+                            ["product_name", "server_name"], registry=self.registry),
+            'power_supplies': Gauge(self.P + 'power_supplies_status', 'HP iLO power_supplies status',
+                                    ["product_name", "server_name"], registry=self.registry),
+            'processor': Gauge(self.P + 'processor_status', 'HP iLO processor status',
+                               ["product_name", "server_name"], registry=self.registry),
+            'network': Gauge(self.P + 'network_status', 'HP iLO network status',
+                             ["product_name", "server_name"], registry=self.registry),
+            'temperature': Gauge(self.P + 'temperature_status', 'HP iLO temperature status',
+                                 ["product_name", "server_name"], registry=self.registry),
+            'firmware_version': Gauge(self.P + 'firmware_version', 'HP iLO firmware version',
+                                      ["product_name", "server_name"], registry=self.registry),
+            'nic_status': Gauge(self.P + 'nic_status', 'HP iLO NIC status',
+                                ["product_name", "server_name", "nic_name", "ip_address"], registry=self.registry),
+            'storage_cache_health': Gauge(self.P + 'storage_cache_health_status', 'Cache Module status',
+                                          ["product_name", "server_name", "controller"], registry=self.registry),
+            'storage_controller_health': Gauge(self.P + 'storage_controller_health_status', 'Controller status',
+                                               ["product_name", "server_name", "controller"], registry=self.registry),
+            'storage_enclosure_health': Gauge(self.P + 'storage_enclosure_health_status', 'Enclosure status',
+                                              ["product_name", "server_name", "controller", "enc"],
+                                              registry=self.registry),
+            'storage_ld_health': Gauge(self.P + 'storage_ld_health_status', 'LD status',
+                                       ["product_name", "server_name", "controller", "logical_drive"],
+                                       registry=self.registry),
+            'storage_pd_health': Gauge(self.P + 'storage_pd_health_status', 'PD status',
+                                       ["product_name", "server_name", "controller", "logical_drive", "physical_drive"],
+                                       registry=self.registry),
+            'temperature_value': Gauge(self.P + 'temperature_value', 'Temperature value',
+                                       ["product_name", "server_name", "sensor"], registry=self.registry),
+            'fan': Gauge(self.P + 'fan_status', 'HP iLO one fan status',
+                         ["product_name", "server_name", "fan"], registry=self.registry),
+            'fan_speed': Gauge(self.P + 'fan_speed', 'HP iLO one fan value',
+                               ["product_name", "server_name", "fan"], registry=self.registry),
+            'power_supply': Gauge(self.P + 'power_supply_status', 'HP iLO one power supply power',
+                                  ["product_name", "server_name", "ps"], registry=self.registry),
+            'running': Gauge(self.P + 'running_status', 'HP iLO running status',
+                             ["product_name", "server_name"], registry=self.registry),
+            'oa_info': Gauge(self.P + 'onboard_administrator_info', 'HP iLO OnBoard Administrator Info',
+                             ["product_name", "server_name", "oa_ip", "encl", "location_bay"], registry=self.registry),
+        }
+        BaseHTTPRequestHandler.__init__(self, request, client_address, server)
+
+    def watch_health_at_glance(self):
+        health_at_glance = self.embedded_health['health_at_a_glance']
+        if health_at_glance is not None:
+            for key, value in health_at_glance.items():
+                for status in value.items():
+                    if status[0] == 'status':
+                        health = status[1].upper()
+                        self.gauges[key].labels(product_name=self.product_name,
+                                                server_name=self.server_name).set(translate(health))
+
+    def watch_temperature(self):
+        temperature_values = self.embedded_health.get('temperature', {})
+        if temperature_values is not None:
+            for t_key, t_value in temperature_values.items():
+                s_name = t_key
+                s_value = t_value.get('currentreading', 'N/A')
+                if type(s_value[0]) is int:
+                    self.gauges['temperature_value'].labels(product_name=self.product_name,
+                                                            server_name=self.server_name,
+                                                            sensor=s_name).set(int(s_value[0]))
+
+    def watch_fan(self):
+        fan_values = self.embedded_health.get('fans', {})
+        if fan_values is not None:
+            for f_key, f_value in fan_values.items():
+                s_name = f_key
+                s_speed = f_value.get('speed', 'N/A')
+                s_status = f_value.get('status', 'N/A')
+                if type(s_speed[0]) is int:
+                    self.gauges['fan_speed'].labels(product_name=self.product_name,
+                                                    server_name=self.server_name,
+                                                    fan=s_name).set(int(s_speed[0]))
+                self.gauges['fan'].labels(product_name=self.product_name,
+                                          server_name=self.server_name,
+                                          fan=s_name).set(translate(s_status))
+
+    def watch_ps(self):
+        ps_values = self.embedded_health.get('power_supplies', {})
+        if ps_values is not None:
+            for p_key, p_value in ps_values.items():
+                s_name = p_key
+                s_value = p_value.get('status', 'ABSENT')
+                self.gauges['power_supply'].labels(product_name=self.product_name,
+                                                   server_name=self.server_name,
+                                                   ps=s_name).set(translate(s_value))
+
+    def watch_disks(self):
+        storage_health = self.embedded_health.get('storage', {})
+        if storage_health is not None:
+            for c_key, c_value in storage_health.items():
+                c_model = c_key + ', ' + c_value.get('model', '')
+                cache_health = c_value.get('cache_module_status', 'absent')
+                self.gauges['storage_cache_health'].labels(product_name=self.product_name,
+                                                           server_name=self.server_name,
+                                                           controller=c_model).set(
+                    translate(cache_health))
+                controller_health = c_value.get('controller_status', 'unknown')
+                self.gauges['storage_controller_health'].labels(product_name=self.product_name,
+                                                                server_name=self.server_name, controller=c_model).set(
+                    translate(controller_health))
+                e_key = 0
+                enlist = c_value.get('drive_enclosures', [])
+                if enlist is not None:
+                    for e_value in enlist:
+                        enclosure_health = e_value.get('status', 'unknown')
+                        self.gauges['storage_enclosure_health'].labels(product_name=self.product_name,
+                                                                       server_name=self.server_name,
+                                                                       controller=c_model, enc=e_key).set(
+                            translate(enclosure_health))
+                        e_key = e_key + 1
+                ld_list = c_value.get('logical_drives', [])
+                if ld_list is not None:
+                    ld_key = 0
+                    for ld_value in ld_list:
+                        ld_status = ld_value.get('status', 'unknown')
+                        ld_name = 'LD_' + str(ld_key) + ', ' + ld_value.get('capacity', '') + ', ' + ld_value.get(
+                            'fault_tolerance', '')
+                        self.gauges['storage_ld_health'].labels(product_name=self.product_name,
+                                                                server_name=self.server_name,
+                                                                controller=c_model,
+                                                                logical_drive=ld_name).set(
+                            translate(ld_status))
+
+                        pd_list = ld_value.get('physical_drives', [])
+                        if pd_list is not None:
+                            pd_key = 0
+                            for pd_value in pd_list:
+                                pd_status = pd_value.get('status', 'unknown')
+                                pd_name = pd_value.get('model', '') + ', ' + pd_value.get('capacity', '') + ', ' + \
+                                          pd_value.get('location', 'N' + str(pd_key))
+                                self.gauges['storage_pd_health'].labels(product_name=self.product_name,
+                                                                        server_name=self.server_name,
+                                                                        controller=c_model,
+                                                                        logical_drive=ld_name,
+                                                                        physical_drive=pd_name).set(
+                                    translate(pd_status))
+                                pd_key = pd_key + 1
+                        ld_key = ld_key + 1
 
     def return_error(self):
         self.send_response(500)
@@ -138,75 +222,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         """
         # this will be used to return the total amount of time the request took
         start_time = time.time()
-        registry = None
-        registry = CollectorRegistry(self)
-        Process_Registry = REGISTRY
 
         # Create a metric to track time spent and requests made.
-        REQUEST_TIME = Summary('hpilo_request_processing_seconds', 'Time spent processing request', registry=registry)
-
-        hpilo_vrm_gauge = Gauge('hpilo_vrm', 'HP iLO vrm status', ["product_name", "server_name"], registry=registry)
-        hpilo_drive_gauge = Gauge('hpilo_drive', 'HP iLO drive status', ["product_name", "server_name"],
-                                  registry=registry)
-        hpilo_battery_gauge = Gauge('hpilo_battery', 'HP iLO battery status', ["product_name", "server_name"],
-                                    registry=registry)
-        hpilo_storage_gauge = Gauge('hpilo_storage', 'HP iLO storage status', ["product_name", "server_name"],
-                                    registry=registry)
-        hpilo_fans_gauge = Gauge('hpilo_fans', 'HP iLO fans status', ["product_name", "server_name"], registry=registry)
-        hpilo_bios_hardware_gauge = Gauge('hpilo_bios_hardware', 'HP iLO bios_hardware status',
-                                          ["product_name", "server_name"], registry=registry)
-        hpilo_memory_gauge = Gauge('hpilo_memory', 'HP iLO memory status', ["product_name", "server_name"],
-                                   registry=registry)
-        hpilo_power_supplies_gauge = Gauge('hpilo_power_supplies', 'HP iLO power_supplies status', ["product_name",
-                                                                                                    "server_name"],
-                                           registry=registry)
-        hpilo_processor_gauge = Gauge('hpilo_processor', 'HP iLO processor status', ["product_name", "server_name"],
-                                      registry=registry)
-        hpilo_network_gauge = Gauge('hpilo_network', 'HP iLO network status', ["product_name", "server_name"],
-                                    registry=registry)
-        hpilo_temperature_gauge = Gauge('hpilo_temperature', 'HP iLO temperature status',
-                                        ["product_name", "server_name"], registry=registry)
-        hpilo_firmware_version = Gauge('hpilo_firmware_version', 'HP iLO firmware version',
-                                       ["product_name", "server_name"], registry=registry)
-        hpilo_nic_status_gauge = Gauge('hpilo_nic_status', 'HP iLO NIC status',
-                                       ["product_name", "server_name", "nic_name", "ip_address"], registry=registry)
-        hpilo_storage_cache_health_gauge = Gauge('hpilo_storage_cache_health', 'Cache Module status',
-                                                 ["product_name", "server_name", "controller"], registry=registry)
-        hpilo_storage_controller_health_gauge = Gauge('hpilo_storage_controller_health', 'Controller status',
-                                                      ["product_name", "server_name", "controller"], registry=registry)
-        hpilo_storage_enclosure_health_gauge = Gauge('hpilo_storage_enclosure_health', 'Enclosure status',
-                                                     ["product_name", "server_name", "controller", "enc"],
-                                                     registry=registry)
-        hpilo_storage_ld_health_gauge = Gauge('hpilo_storage_ld_health', 'LD status',
-                                              ["product_name", "server_name", "controller", "logical_drive"],
-                                              registry=registry)
-        hpilo_storage_pd_health_gauge = Gauge('hpilo_storage_pd_health', 'PD status',
-                                              ["product_name", "server_name", "controller", "logical_drive",
-                                               "physical_drive"], registry=registry)
-        hpilo_temperature_value_gauge = Gauge('hpilo_temperature_value', 'Temperature value',
-                                              ["product_name", "server_name", "sensor"], registry=registry)
-
-        gauges = {
-            'hpilo_vrm_gauge': hpilo_vrm_gauge,
-            'hpilo_drive_gauge': hpilo_drive_gauge,
-            'hpilo_battery_gauge': hpilo_battery_gauge,
-            'hpilo_storage_gauge': hpilo_storage_gauge,
-            'hpilo_fans_gauge': hpilo_fans_gauge,
-            'hpilo_bios_hardware_gauge': hpilo_bios_hardware_gauge,
-            'hpilo_memory_gauge': hpilo_memory_gauge,
-            'hpilo_power_supplies_gauge': hpilo_power_supplies_gauge,
-            'hpilo_processor_gauge': hpilo_processor_gauge,
-            'hpilo_network_gauge': hpilo_network_gauge,
-            'hpilo_temperature_gauge': hpilo_temperature_gauge,
-            'hpilo_firmware_version': hpilo_firmware_version,
-            'hpilo_nic_status_gauge': hpilo_nic_status_gauge,
-            'hpilo_storage_cache_health_gauge': hpilo_storage_cache_health_gauge,
-            'hpilo_storage_controller_health_gauge': hpilo_storage_controller_health_gauge,
-            'hpilo_storage_enclosure_health_gauge': hpilo_storage_enclosure_health_gauge,
-            'hpilo_storage_ld_health_gauge': hpilo_storage_ld_health_gauge,
-            'hpilo_storage_pd_health_gauge': hpilo_storage_pd_health_gauge,
-            'hpilo_temperature_value_gauge': hpilo_temperature_value_gauge,
-        }
+        request_time = Summary(self.P + 'request_processing_seconds', 'Time spent processing request',
+                               registry=self.registry)
 
         # get parameters from the URL
         url = urlparse(self.path)
@@ -260,53 +279,77 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             # get product and server name
             try:
-                product_name = ilo.get_product_name()
+                self.product_name = ilo.get_product_name()
             except:
-                product_name = "Unknown HP Server"
+                self.product_name = "Unknown HP Server"
 
             try:
-                server_name = ilo.get_server_name()
-                if server_name == "":
-                    server_name = ilo_host
+                self.server_name = ilo.get_server_name()
+                if self.server_name == "":
+                    self.server_name = ilo_host
             except:
-                server_name = ilo_host
+                self.server_name = ilo_host
 
             # get health, mod by n27051538
-            embedded_health = ilo.get_embedded_health()
-            watch_health_at_glance(embedded_health, gauges, product_name, server_name)
-            watch_disks(embedded_health, gauges, product_name, server_name)
-            watch_temperature(embedded_health, gauges, product_name, server_name)
+            self.embedded_health = ilo.get_embedded_health()
+            self.watch_health_at_glance()
+            self.watch_disks()
+            self.watch_temperature()
+            self.watch_fan()
+            self.watch_ps()
+
+            try:
+                running = ilo.get_host_power_status()
+                self.gauges['running'].labels(product_name=self.product_name, server_name=self.server_name).set(
+                    translate(running))
+            except:
+                pass
 
             # for iLO3 patch network
             if ilo.get_fw_version()["management_processor"] == 'iLO3':
                 print_err('Unknown iLO nic status')
             else:
                 # get nic information
-                for nic_name, nic in embedded_health['nic_information'].items():
+                for nic_name, nic in self.embedded_health['nic_information'].items():
                     try:
                         value = ['OK', 'Disabled', 'Unknown', 'Link Down'].index(nic['status'])
                     except ValueError:
                         value = 4
                         print_err('unrecognised nic status: {}'.format(nic['status']))
 
-                    hpilo_nic_status_gauge.labels(product_name=product_name, server_name=server_name, nic_name=nic_name,
-                                                  ip_address=nic['ip_address']).set(value)
+                    self.gauges['nic_status'].labels(product_name=self.product_name, server_name=self.server_name,
+                                                     nic_name=nic_name, ip_address=nic['ip_address']).set(value)
 
             # get firmware version
-            fw_version = ilo.get_fw_version()["firmware_version"]
-            hpilo_firmware_version.labels(product_name=product_name, server_name=server_name).set(fw_version)
+            try:
+                fw_version = ilo.get_fw_version()["firmware_version"]
+                self.gauges['firmware_version'].labels(product_name=self.product_name,
+                                                       server_name=self.server_name).set(fw_version)
+            except:
+                pass
+
+            try:
+                oa_info = ilo.get_oa_info()
+                self.gauges['oa_info'].labels(product_name=self.product_name,
+                                              server_name=self.server_name,
+                                              oa_ip=oa_info.get('ipaddress',''),
+                                              encl=oa_info.get('encl',''),
+                                              location_bay=oa_info.get('location',''),
+                                              ).set(0)
+            except:
+                pass
 
             # get the amount of time the request took
-            REQUEST_TIME.observe(time.time() - start_time)
+            request_time.observe(time.time() - start_time)
 
             # generate and publish metrics
-            metrics = generate_latest(registry)
-            proc_metrics = generate_latest(Process_Registry)
+            metrics = generate_latest(self.registry)
+            process_metrics = generate_latest(self.process_registry)
             self.send_response(200)
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(metrics)
-            self.wfile.write(proc_metrics)
+            self.wfile.write(process_metrics)
 
         elif url.path == '/':
             self.send_response(200)

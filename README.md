@@ -137,8 +137,9 @@ A helm chart is available at [prometheus-helm-addons](https://github.com/IDNT/pr
 ### Prometheus config
 
 Assuming:
-- the exporter is available on `http://hpilo:9416`
+- the exporter is available on `http://127.0.0.1:9416`
 - you use same the port,username and password for all your iLO
+- change 127.0.0.1 address to actual address of exporter if prometheus is running on different host  
 
 ```yml
 - job_name: 'hpilo'
@@ -159,6 +160,6 @@ Assuming:
     - source_labels: [__param_ilo_host]
       target_label: ilo_host
     - target_label: __address__
-      replacement: hpilo:8082  # hpilo exporter.
+      replacement: 127.0.0.1:9416  # hpilo exporter.
 ```
 

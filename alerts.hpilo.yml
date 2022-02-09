@@ -3,12 +3,12 @@ groups:
     rules:
       - alert: 'hPiLO exporter'
         expr: up{job="hpilo"} == 0
-        for: 3m
+        for: 10m
         labels:
           severity: 'warning'
         annotations:
           title: 'HPiLO exporter'
-          description: 'Exporter seems down.'
+          description: 'HPiLO exporter seems down.'
 
       - alert: 'HPiLO_Temperature'
         expr: 'min(hpilo_temperature_value{job="hpilo"} > 0) without (sensor) > 30'
@@ -19,9 +19,10 @@ groups:
           title: 'High Temperature'
           description: 'High temperature detected ({{ $value | humanize }}C)'
 
+      # all other alerts
       - alert: 'HWstatus'
-        expr: '{job="hpilo", __name__=~"hpilo_.*status", __name__!~"hpilo_nic_status|hpilo_network_status"} > 0'
-        for: 3m
+        expr: '{job="hpilo", __name__=~"hpilo_.*status", __name__!~"hpilo_nic_status|hpilo_network_status|hpilo_battery_status|hpilo_power_supply_status|hpilo_fan_status"} > 0'
+        for: 0s
         labels:
           severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"
           metric: '{{ .Labels.__name__ }}'
@@ -37,3 +38,91 @@ groups:
                         {{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}
                           Blade Enclosure {{ . | first | label \"encl\" }}, OA_IP {{ . | first | label \"oa_ip\" }}, Bay {{ . | first | label \"location_bay\" }}
                         {{end}}"
+
+      # set separate alert about battery with possibility of exclusion hosts with 'battery' tag in noAlarmOn label
+      - alert: 'Battery Status'
+        expr: 'hpilo_battery_status{job="hpilo",noAlarmOn!~"(.*,|^)battery(,.*|$)"} > 0'
+        for: 0s
+        labels:
+          severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"
+          metric: '{{ .Labels.__name__ }}'
+          vsp: "{{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}{{ . | first | label \"encl\" }}{{end}}"
+        annotations:
+          title: '{{ .Labels.__name__ }} status'
+          description: "{{ .Labels.__name__ }} is
+                        {{      if eq ($value | humanize) \"0\" }}'ok'
+                        {{ else if eq ($value | humanize) \"1\" }}'warning'
+                        {{ else if eq ($value | humanize) \"2\" }}'critical'
+                        {{else}}'unknown'
+                        {{ end }}({{ $value | printf \"%.0f\" }}).
+                        {{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}
+                          Blade Enclosure {{ . | first | label \"encl\" }}, OA_IP {{ . | first | label \"oa_ip\" }}, Bay {{ . | first | label \"location_bay\" }}
+                        {{end}}"
+
+      # prevent fake PS alert enforced while having Battety alert
+      - alert: 'Battery Supply Status'
+        expr: 'hpilo_power_supply_status{job="hpilo",noAlarmOn!~"(.*,|^)PowerSupply(,.*|$)",ps=~"Battery.*"} > 0'
+        for: 0s
+        labels:
+          severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"
+          metric: '{{ .Labels.__name__ }}'
+          vsp: "{{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}{{ . | first | label \"encl\" }}{{end}}"
+        annotations:
+          title: 'hpilo Battery Supply status'
+          description: "{{ .Labels.__name__ }} is
+                        {{      if eq ($value | humanize) \"0\" }}'ok'
+                        {{ else if eq ($value | humanize) \"1\" }}'warning'
+                        {{ else if eq ($value | humanize) \"2\" }}'critical'
+                        {{else}}'unknown'
+                        {{ end }}({{ $value | printf \"%.0f\" }}).
+                        {{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}
+                          Blade Enclosure {{ . | first | label \"encl\" }}, OA_IP {{ . | first | label \"oa_ip\" }}, Bay {{ . | first | label \"location_bay\" }}
+                        {{end}}"
+
+      # prevent fake PS alert enforced while having Battety alert
+      - alert: 'Power Supply Status'
+        expr: 'hpilo_power_supply_status{job="hpilo",noAlarmOn!~"(.*,|^)PowerSupply(,.*|$)",ps!~"Battery.*"} > 0'
+        for: 0s
+        labels:
+          severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"
+          metric: '{{ .Labels.__name__ }}'
+          vsp: "{{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}{{ . | first | label \"encl\" }}{{end}}"
+        annotations:
+          title: '{{ .Labels.__name__ }} status'
+          description: "{{ .Labels.__name__ }} is
+                        {{      if eq ($value | humanize) \"0\" }}'ok'
+                        {{ else if eq ($value | humanize) \"1\" }}'warning'
+                        {{ else if eq ($value | humanize) \"2\" }}'critical'
+                        {{else}}'unknown'
+                        {{ end }}({{ $value | printf \"%.0f\" }}).
+                        {{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}
+                          Blade Enclosure {{ . | first | label \"encl\" }}, OA_IP {{ . | first | label \"oa_ip\" }}, Bay {{ . | first | label \"location_bay\" }}
+                        {{end}}"
+
+      # prevent fake alert for two-socket servers with only one socket installed: two fans will be absent
+      - alert: 'Fan Status'
+        expr: 'hpilo_fan_status{job="hpilo",noAlarmOn!~"(.*,|^)Fan(,.*|$)"} * ignoring(fan) group_left  hpilo_fans_status > 0'
+        for: 0s
+        labels:
+          severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"
+          metric: '{{ .Labels.__name__ }}'
+          vsp: "{{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}{{ . | first | label \"encl\" }}{{end}}"
+        annotations:
+          title: '{{ .Labels.__name__ }} status'
+          description: "{{ .Labels.__name__ }} is
+                        {{      if eq ($value | humanize) \"0\" }}'ok'
+                        {{ else if eq ($value | humanize) \"1\" }}'warning'
+                        {{else}}'critical'
+                        {{ end }}({{ $value | printf \"%.0f\" }}).
+                        {{ with printf \"hpilo_onboard_administrator_info{instance='%s',job='%s'}\" .Labels.instance .Labels.job | query }}
+                          Blade Enclosure {{ . | first | label \"encl\" }}, OA_IP {{ . | first | label \"oa_ip\" }}, Bay {{ . | first | label \"location_bay\" }}
+                        {{end}}"
+
+    #  - alert: 'RunningStatus'
+    #    expr: 'hpilo_running_status{job="hpilo"} != 0'
+    #    for: 1m
+    #    labels:
+    #      severity: "critical"
+    #    annotations:
+    #      title: 'Running status'
+    #      description: "{{ .Labels.server_name }} is not in RUNNING(ON) status"

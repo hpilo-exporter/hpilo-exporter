@@ -61,7 +61,7 @@ groups:
 
       # prevent fake PS alert enforced while having Battety alert
       - alert: 'Battery Supply Status'
-        expr: 'hpilo_power_supply_status{job="hpilo",noAlarmOn!~"(.*,|^)PowerSupply(,.*|$)",ps=~"Battery.*"} > 0'
+        expr: 'hpilo_power_supply_status{job="hpilo",noAlarmOn!~"(.*,|^)battery(,.*|$)",ps=~"Battery.*"} > 0'
         for: 0s
         labels:
           severity: "{{ if eq ($value | humanize) \"1\" }}warning{{ else if eq ($value | humanize) \"3\" }}warning{{else}}critical{{end}}"

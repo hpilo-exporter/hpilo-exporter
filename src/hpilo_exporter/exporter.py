@@ -73,6 +73,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                             ["product_name", "server_name"], registry=self.registry),
             'power_supplies': Gauge(self.P + 'power_supplies_status', 'HP iLO power_supplies status',
                                     ["product_name", "server_name"], registry=self.registry),
+            'power_supplies_readings': Gauge(self.P + 'power_supplies_readings', 'HP iLO power_supplies status',
+                                    ["product_name", "server_name"], registry=self.registry),
             'processor': Gauge(self.P + 'processor_status', 'HP iLO processor status',
                                ["product_name", "server_name"], registry=self.registry),
             'network': Gauge(self.P + 'network_status', 'HP iLO network status',
@@ -156,6 +158,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.gauges['power_supply'].labels(product_name=self.product_name,
                                                    server_name=self.server_name,
                                                    ps=s_name).set(translate(s_value))
+
+        ps_readings_values = self.embedded_health.get('power_supply_summary', {})
+        if ps_readings_values is not None:
+                # TODO: implement error handling 
+                readings = ps_readings_values['present_power_reading']
+                self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
 
     def watch_disks(self):
         storage_health = self.embedded_health.get('storage', {})

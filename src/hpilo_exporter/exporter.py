@@ -260,18 +260,18 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         if url.path == self.server.endpoint and ilo_host and ilo_user and ilo_password and ilo_port:
             ilo = None
-            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            #ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             # Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
-            ssl_context.options &= ~ssl.OP_NO_SSLv3
-            ssl_context.check_hostname = False
-            ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
-                                     'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
-                                     '!eNULL:!MD5'))
+            #ssl_context.options &= ~ssl.OP_NO_SSLv3
+            #ssl_context.check_hostname = False
+            #ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
+            #                         'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
+            #                         '!eNULL:!MD5'))
             try:
                 ilo = hpilo.Ilo(hostname=ilo_host,
                                 login=ilo_user,
                                 password=ilo_password,
-                                port=ilo_port, timeout=10, ssl_context=ssl_context)
+                                port=ilo_port, timeout=10, ) # ssl_context=ssl_context)
             except hpilo.IloLoginFailed:
                 print("ILO login failed")
                 self.return_error()

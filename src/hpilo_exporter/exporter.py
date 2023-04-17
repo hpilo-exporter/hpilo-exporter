@@ -77,6 +77,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                                     ["product_name", "server_name"], registry=self.registry),
             'processor': Gauge(self.P + 'processor_status', 'HP iLO processor status',
                                ["product_name", "server_name"], registry=self.registry),
+            'processor_detail': Gauge(self.P + 'processor_detail', 'HP iLO processor status',
+                               ["product_name", "server_name", "cpu_id", "name", "status", "speed"], registry=self.registry),
             'network': Gauge(self.P + 'network_status', 'HP iLO network status',
                              ["product_name", "server_name"], registry=self.registry),
             'temperature': Gauge(self.P + 'temperature_status', 'HP iLO temperature status',
@@ -133,6 +135,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                     self.gauges['temperature_value'].labels(product_name=self.product_name,
                                                             server_name=self.server_name,
                                                             sensor=s_name).set(int(s_value[0]))
+
+
+    def watch_processor(self):
+        processors_values = self.embedded_health.get('processors', {})
+        if processors_values is not None:
+            for cpu in processors_values.values():
+                self.gauges["processor_detail"].labels(product_name=self.product_name, server_name=self.server_name, cpu_id=cpu['label'].split()[1], name=cpu['name'].strip(), status=cpu['status'], speed=cpu['speed']).set(1 if "OK" in cpu["status"] else 0)
 
     def watch_fan(self):
         fan_values = self.embedded_health.get('fans', {})
@@ -305,6 +314,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.watch_temperature()
             self.watch_fan()
             self.watch_ps()
+            self.watch_processor()
 
             try:
                 running = ilo.get_host_power_status()

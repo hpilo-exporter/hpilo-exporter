@@ -188,11 +188,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
 
     def watch_battery(self):
-        battery_health = self.embedded_health.get('power_supplies', {})
-        if battery_health is not None:
-            if battery_health['Battery 1'] is not None:
-                batt = battery_health['Battery 1']
-                #battery1_b = embedded_health['power_supplies']['Battery 1']
+        power_supplies = self.embedded_health.get('power_supplies', {})
+        if power_supplies is not None:
+            if 'Battery 1' in power_supplies:
+                batt = power_supplies['Battery 1']
                 label_b = batt['label']
                 present_b = batt['present']
                 status_b = batt['status']

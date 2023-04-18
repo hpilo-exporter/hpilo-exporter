@@ -109,7 +109,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             'fan_speed': Gauge(self.P + 'fan_speed', 'HP iLO one fan value',
                                ["product_name", "server_name", "fan"], registry=self.registry),
             'power_supply': Gauge(self.P + 'power_supply_status', 'HP iLO one power supply power',
-                                  ["product_name", "server_name", "ps"], registry=self.registry),
+                                  ["product_name", "server_name", "ps","capacity_w"], registry=self.registry),
             'running': Gauge(self.P + 'running_status', 'HP iLO running status',
                              ["product_name", "server_name"], registry=self.registry),
             'oa_info': Gauge(self.P + 'onboard_administrator_info', 'HP iLO OnBoard Administrator Info',
@@ -174,8 +174,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             for p_key, p_value in ps_values.items():
                 s_name = p_key
                 s_value = p_value.get('status', 'ABSENT')
+                capacity_w = 0 if p_value.get("capacity") == "N/A" else int(p_value.get("capacity").split()[0])
                 self.gauges['power_supply'].labels(product_name=self.product_name,
                                                    server_name=self.server_name,
+                                                   capacity_w=capacity_w,
                                                    ps=s_name).set(translate(s_value))
 
         ps_readings_values = self.embedded_health.get('power_supply_summary', {})

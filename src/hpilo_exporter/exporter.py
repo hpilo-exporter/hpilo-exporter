@@ -64,6 +64,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                            ["product_name", "server_name"], registry=self.registry),
             'battery': Gauge(self.P + 'battery_status', 'HP iLO battery status',
                              ["product_name", "server_name"], registry=self.registry),
+            'battery_detail': Gauge(self.P + 'battery_detail', 'HP iLO battery status  0 = OK, 1 = DEGRADED', ["label","present","status","model","spare","serial_number","capacity","firmware_version","product_name","server_name"], registry=self.registry),
             'storage': Gauge(self.P + 'storage_status', 'HP iLO storage status',
                              ["product_name", "server_name"], registry=self.registry),
             'fans': Gauge(self.P + 'fans_status', 'HP iLO all fans status',
@@ -185,6 +186,23 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # TODO: implement error handling 
                 readings = ps_readings_values['present_power_reading']
                 self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
+
+    def watch_battery(self):
+        battery_health = self.embedded_health.get('power_supplies', {})
+        if battery_health is not None:
+            if battery_health['Battery 1'] is not None:
+                batt = battery_health['Battery 1']
+                #battery1_b = embedded_health['power_supplies']['Battery 1']
+                label_b = batt['label']
+                present_b = batt['present']
+                status_b = batt['status']
+                model_b = batt['model']
+                spare_b = batt['spare']
+                serial_number_b = batt['serial_number']
+                capacity_b = batt['capacity']
+                firmware_version_b = batt['firmware_version']
+
+                self.gauges["battery_detail"].labels(label=label_b,present=present_b,status=status_b,model=model_b,spare=spare_b,serial_number=serial_number_b,capacity=capacity_b,firmware_version=firmware_version_b,product_name=self.product_name,server_name=self.server_name).set(0)
 
     def watch_disks(self):
         storage_health = self.embedded_health.get('storage', {})
@@ -328,6 +346,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.watch_ps()
             self.watch_processor()
             self.watch_memory()
+            self.watch_battery()
 
             try:
                 running = ilo.get_host_power_status()

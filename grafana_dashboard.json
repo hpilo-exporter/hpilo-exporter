@@ -83,7 +83,7 @@
         },
         "textMode": "name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
          "datasource": "${DS_PROMETHEUS}",
@@ -166,7 +166,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -219,7 +219,8 @@
             ]
           },
           "unit": "watt"
-        }
+        },
+        "overrides": []      
       },
       "gridPos": {
         "h": 6,
@@ -240,7 +241,7 @@
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -314,7 +315,8 @@
             ]
           },
           "unit": "watt"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
@@ -335,7 +337,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -394,7 +396,7 @@
         },
         "textMode": "name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -455,7 +457,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -629,7 +631,7 @@
         },
         "textMode": "value_and_name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -776,7 +778,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -832,7 +834,7 @@
         },
         "textMode": "name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -894,7 +896,7 @@
         },
         "textMode": "name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -950,7 +952,7 @@
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -1010,7 +1012,7 @@
         },
         "textMode": "name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -1073,7 +1075,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
           "datasource": "${DS_PROMETHEUS}",
@@ -1151,7 +1153,7 @@
         },
         "textMode": "value_and_name"
       },
-      "pluginVersion": "9.1.6",
+      "pluginVersion": "9.4.7",
       "targets": [
         {
          "datasource": "${DS_PROMETHEUS}",
@@ -1166,8 +1168,9 @@
       "type": "stat"
     }
   ],
-  "refresh": false,
-  "schemaVersion": 37,
+  "refresh": "",
+  "revision": 1,
+  "schemaVersion": 38,
   "style": "dark",
   "tags": [],
   "templating": {

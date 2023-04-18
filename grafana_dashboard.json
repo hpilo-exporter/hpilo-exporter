@@ -899,8 +899,8 @@
         {
           "datasource": "${DS_PROMETHEUS}",
           "editorMode": "code",
-          "expr": "sum(hpilo_power_supplies_detail{capacity_w!=\"0\", server_name=\"$server_name\", product_name!=\"Unknown HP Server\"}) by (psu_id, capacity_w)",
-          "legendFormat": "PSU {{psu_id}} - {{capacity_w}} W",
+          "expr": "sum(hpilo_power_supply_status{capacity_w!=\"0\", server_name=\"$server_name\", product_name!=\"Unknown HP Server\",ps!~\"Battery.*\"}) by (ps, capacity_w)",
+          "legendFormat": "{{ps}} - {{capacity_w}} W",
           "range": true,
           "refId": "A"
         }
@@ -1100,15 +1100,15 @@
           "mappings": [
             {
               "options": {
+                "0": {
+                  "color": "dark-green",
+                  "index": 0,
+                  "text": "Good"
+                },
                 "1": {
                   "color": "dark-red",
                   "index": 1,
                   "text": "Failure"
-                },
-                "2": {
-                  "color": "dark-green",
-                  "index": 0,
-                  "text": "Good"
                 }
               },
               "type": "value"
@@ -1156,7 +1156,7 @@
         {
          "datasource": "${DS_PROMETHEUS}",
           "editorMode": "code",
-          "expr": "hpilo_power_supply_status{server_name=\"$server_name\", product_name!=\"Unknown HP Server\",label!~\"Battery.*\"}",
+          "expr": "hpilo_power_supply_status{server_name=\"$server_name\", product_name!=\"Unknown HP Server\",ps!~\"Battery.*\"}",
           "legendFormat": "{{ps}}",
           "range": true,
           "refId": "A"
@@ -1192,6 +1192,13 @@
         "type": "query"
       }
     ]
+  },
+  "time": {
+
+    "from": "now-6h",
+
+    "to": "now"
+
   },
   "timepicker": {},
   "timezone": "",

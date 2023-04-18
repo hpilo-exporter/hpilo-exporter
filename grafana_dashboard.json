@@ -219,53 +219,7 @@
             ]
           },
           "unit": "watt"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "dedi3"
-            },
-            "properties": [
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 250
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "dedi2"
-            },
-            "properties": [
-              {
-                "id": "max",
-                "value": 500
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "dedi5"
-            },
-            "properties": [
-              {
-                "id": "max",
-                "value": 300
-              }
-            ]
-          }
-        ]
+        }
       },
       "gridPos": {
         "h": 6,
@@ -360,41 +314,7 @@
             ]
           },
           "unit": "watt"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "dedi3"
-            },
-            "properties": [
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 250
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "dedi2"
-            },
-            "properties": [
-              {
-                "id": "max",
-                "value": 500
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          }
-        ]
+        }
       },
       "gridPos": {
         "h": 6,
@@ -1253,12 +1173,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": true,
-          "text": "dedi3",
-          "value": "dedi3"
-        },
-         "datasource": "${DS_PROMETHEUS}",
+        "datasource": "${DS_PROMETHEUS}",
         "definition": "label_values(hpilo_bios_hardware, server_name)",
         "hide": 0,
         "includeAll": false,
@@ -1271,7 +1186,7 @@
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
-        "regex": "dedi.*",
+        "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"

@@ -8,6 +8,7 @@ import hpilo
 import ssl
 import time
 import os
+import psutil  # process handling, zombies
 from prometheus_client import generate_latest, Summary, Gauge, CollectorRegistry, REGISTRY
 
 try:
@@ -407,9 +408,22 @@ class ILOExporterServer(object):
         server = ThreadingHTTPServer((self._address, self._port), RequestHandler)
         server.endpoint = self.endpoint
 
+        pid = None
         try:
             while True:
                 server.handle_request()
+
+                # new block waiting for zombies
+                for proc in psutil.process_iter():
+                    if 'hpilo-exporter' in proc.name():
+                        pid = proc.pid
+                        p = psutil.Process(pid)
+                        if p.status() == psutil.STATUS_ZOMBIE:
+                            # print("wait for pid: " + str(pid) + " p.status: " + str(  p.status()  )  ) # running, sleeping, zombie
+                            if (pid != 0):
+                                os.waitid(os.P_PID, pid, os.WEXITED) # terminate zombie
+                        pid = None
+
         except KeyboardInterrupt:
             print_err("Killing exporter")
             server.server_close()

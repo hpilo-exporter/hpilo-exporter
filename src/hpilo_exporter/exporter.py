@@ -72,6 +72,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                                    ["product_name", "server_name"], registry=self.registry),
             'memory': Gauge(self.P + 'memory_status', 'HP iLO memory status',
                             ["product_name", "server_name"], registry=self.registry),
+            'memory_detail' : Gauge(self.P + 'memory_detail', 'HP iLO memory detail info', ["product_name", "server_name", "cpu_id", "operating_frequency", "operating_voltage"], registry=self.registry),
             'power_supplies': Gauge(self.P + 'power_supplies_status', 'HP iLO power_supplies status',
                                     ["product_name", "server_name"], registry=self.registry),
             'power_supplies_readings': Gauge(self.P + 'power_supplies_readings', 'HP iLO power_supplies status',
@@ -143,6 +144,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         if processors_values is not None:
             for cpu in processors_values.values():
                 self.gauges["processor_detail"].labels(product_name=self.product_name, server_name=self.server_name, cpu_id=cpu['label'].split()[1], name=cpu['name'].strip(), status=cpu['status'], speed=cpu['speed']).set(1 if "OK" in cpu["status"] else 0)
+
+    def watch_memory(self):
+        memory_values = self.embedded_health.get('memory', {})
+        if memory_values is not None:
+
+           for cpu_idx, cpu in memory_values['memory_details_summary'].items():
+                total_memory_size = 0 if (cpu['total_memory_size'] == 'N/A') else int(cpu['total_memory_size'].split()[0])
+                self.gauges["memory_detail"].labels(product_name=self.product_name, server_name=self.server_name, cpu_id=cpu_idx.split("_")[1], operating_frequency=cpu['operating_frequency'], operating_voltage=cpu['operating_voltage']).set(total_memory_size)
 
     def watch_fan(self):
         fan_values = self.embedded_health.get('fans', {})
@@ -316,6 +325,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.watch_fan()
             self.watch_ps()
             self.watch_processor()
+            self.watch_memory()
 
             try:
                 running = ilo.get_host_power_status()

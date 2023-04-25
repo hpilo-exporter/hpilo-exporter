@@ -4,6 +4,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
     steps:
     - uses: actions/checkout@v2
     - uses: tonybajan/flake8-check-action@v1.3.0

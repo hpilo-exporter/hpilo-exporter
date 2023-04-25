@@ -172,9 +172,10 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         ps_readings_values = self.embedded_health.get('power_supply_summary', {})
         if ps_readings_values is not None:
-            # TODO: implement error handling
-            readings = ps_readings_values['present_power_reading']
-            self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
+            if 'present_power_reading' in ps_readings_values:
+                # TODO: implement error handling
+                readings = ps_readings_values['present_power_reading']
+                self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
 
     def watch_battery(self):
         power_supplies = self.embedded_health.get('power_supplies', {})

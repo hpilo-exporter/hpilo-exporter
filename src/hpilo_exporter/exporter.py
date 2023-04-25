@@ -2,27 +2,17 @@
 Pulls data from specified iLO and presents as Prometheus metrics
 """
 from __future__ import print_function
-from _socket import gaierror
 import sys
-import hpilo
-import ssl
+# import ssl
 import time
 import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse   # quote_plus,
+from socketserver import ThreadingMixIn
 import psutil  # process handling, zombies
+import hpilo
+from _socket import gaierror
 from prometheus_client import generate_latest, Summary, Gauge, CollectorRegistry, REGISTRY
-
-try:
-    from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-    from SocketServer import ThreadingMixIn
-    from urllib2 import build_opener, Request, HTTPHandler
-    from urllib import quote_plus
-    from urlparse import parse_qs, urlparse
-except ImportError:
-    # Python 3
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    from socketserver import ThreadingMixIn
-    from urllib.request import build_opener, Request, HTTPHandler
-    from urllib.parse import quote_plus, parse_qs, urlparse
 
 
 def print_err(*args, **kwargs):
@@ -64,7 +54,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                            ["product_name", "server_name"], registry=self.registry),
             'battery': Gauge(self.P + 'battery_status', 'HP iLO battery status',
                              ["product_name", "server_name"], registry=self.registry),
-            'battery_detail': Gauge(self.P + 'battery_detail', 'HP iLO battery status  0 = OK, 1 = DEGRADED', ["label","present","status","model","spare","serial_number","capacity","firmware_version","product_name","server_name"], registry=self.registry),
+            'battery_detail': Gauge(self.P + 'battery_detail', 'HP iLO battery status  0 = OK, 1 = DEGRADED', ["label", "present", "status", "model", "spare", "serial_number", "capacity", "firmware_version", "product_name", "server_name"], registry=self.registry),
             'storage': Gauge(self.P + 'storage_status', 'HP iLO storage status',
                              ["product_name", "server_name"], registry=self.registry),
             'fans': Gauge(self.P + 'fans_status', 'HP iLO all fans status',
@@ -73,15 +63,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                                    ["product_name", "server_name"], registry=self.registry),
             'memory': Gauge(self.P + 'memory_status', 'HP iLO memory status',
                             ["product_name", "server_name"], registry=self.registry),
-            'memory_detail' : Gauge(self.P + 'memory_detail', 'HP iLO memory detail info', ["product_name", "server_name", "cpu_id", "operating_frequency", "operating_voltage"], registry=self.registry),
+            'memory_detail': Gauge(self.P + 'memory_detail', 'HP iLO memory detail info', ["product_name", "server_name", "cpu_id", "operating_frequency", "operating_voltage"], registry=self.registry),
             'power_supplies': Gauge(self.P + 'power_supplies_status', 'HP iLO power_supplies status',
                                     ["product_name", "server_name"], registry=self.registry),
             'power_supplies_readings': Gauge(self.P + 'power_supplies_readings', 'HP iLO power_supplies status',
-                                    ["product_name", "server_name"], registry=self.registry),
+                                             ["product_name", "server_name"], registry=self.registry),
             'processor': Gauge(self.P + 'processor_status', 'HP iLO processor status',
                                ["product_name", "server_name"], registry=self.registry),
             'processor_detail': Gauge(self.P + 'processor_detail', 'HP iLO processor status',
-                               ["product_name", "server_name", "cpu_id", "name", "status", "speed"], registry=self.registry),
+                                      ["product_name", "server_name", "cpu_id", "name", "status", "speed"], registry=self.registry),
             'network': Gauge(self.P + 'network_status', 'HP iLO network status',
                              ["product_name", "server_name"], registry=self.registry),
             'temperature': Gauge(self.P + 'temperature_status', 'HP iLO temperature status',
@@ -110,7 +100,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             'fan_speed': Gauge(self.P + 'fan_speed', 'HP iLO one fan value',
                                ["product_name", "server_name", "fan"], registry=self.registry),
             'power_supply': Gauge(self.P + 'power_supply_status', 'HP iLO one power supply power',
-                                  ["product_name", "server_name", "ps","capacity_w"], registry=self.registry),
+                                  ["product_name", "server_name", "ps", "capacity_w"], registry=self.registry),
             'running': Gauge(self.P + 'running_status', 'HP iLO running status',
                              ["product_name", "server_name"], registry=self.registry),
             'oa_info': Gauge(self.P + 'onboard_administrator_info', 'HP iLO OnBoard Administrator Info',
@@ -139,7 +129,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                                                             server_name=self.server_name,
                                                             sensor=s_name).set(int(s_value[0]))
 
-
     def watch_processor(self):
         processors_values = self.embedded_health.get('processors', {})
         if processors_values is not None:
@@ -150,7 +139,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         memory_values = self.embedded_health.get('memory', {})
         if memory_values is not None:
 
-           for cpu_idx, cpu in memory_values['memory_details_summary'].items():
+            for cpu_idx, cpu in memory_values['memory_details_summary'].items():
                 total_memory_size = 0 if (cpu['total_memory_size'] == 'N/A') else int(cpu['total_memory_size'].split()[0])
                 self.gauges["memory_detail"].labels(product_name=self.product_name, server_name=self.server_name, cpu_id=cpu_idx.split("_")[1], operating_frequency=cpu['operating_frequency'], operating_voltage=cpu['operating_voltage']).set(total_memory_size)
 
@@ -183,9 +172,9 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         ps_readings_values = self.embedded_health.get('power_supply_summary', {})
         if ps_readings_values is not None:
-                # TODO: implement error handling 
-                readings = ps_readings_values['present_power_reading']
-                self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
+            # TODO: implement error handling
+            readings = ps_readings_values['present_power_reading']
+            self.gauges["power_supplies_readings"].labels(product_name=self.product_name, server_name=self.server_name).set(int(readings.split()[0]))
 
     def watch_battery(self):
         power_supplies = self.embedded_health.get('power_supplies', {})
@@ -201,7 +190,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 capacity_b = batt['capacity']
                 firmware_version_b = batt['firmware_version']
 
-                self.gauges["battery_detail"].labels(label=label_b,present=present_b,status=status_b,model=model_b,spare=spare_b,serial_number=serial_number_b,capacity=capacity_b,firmware_version=firmware_version_b,product_name=self.product_name,server_name=self.server_name).set(0)
+                self.gauges["battery_detail"].labels(label=label_b, present=present_b, status=status_b, model=model_b, spare=spare_b, serial_number=serial_number_b, capacity=capacity_b, firmware_version=firmware_version_b, product_name=self.product_name, server_name=self.server_name).set(0)
 
     def watch_disks(self):
         storage_health = self.embedded_health.get('storage', {})
@@ -246,7 +235,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                             for pd_value in pd_list:
                                 pd_status = pd_value.get('status', 'unknown')
                                 pd_name = pd_value.get('model', '') + ', ' + pd_value.get('capacity', '') + ', ' + \
-                                          pd_value.get('location', 'N' + str(pd_key))
+                                    pd_value.get('location', 'N' + str(pd_key))
                                 self.gauges['storage_pd_health'].labels(product_name=self.product_name,
                                                                         server_name=self.server_name,
                                                                         controller=c_model,
@@ -260,7 +249,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_response(500)
         self.end_headers()
 
-    def do_GET(self):
+    def do_GET(self):  # noqa: C901
         """
         Process GET request
 
@@ -293,23 +282,23 @@ class RequestHandler(BaseHTTPRequestHandler):
             error_detected = True
         try:
             ilo_port = int(query_components.get('ilo_port', [''])[0] or os.environ['ilo_port'])
-        except KeyError as e:
+        except Exception:
             ilo_port = 443
 
         if url.path == self.server.endpoint and ilo_host and ilo_user and ilo_password and ilo_port:
             ilo = None
-            #ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            # Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
-            #ssl_context.options &= ~ssl.OP_NO_SSLv3
-            #ssl_context.check_hostname = False
-            #ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
+            #  ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            #   Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
+            #   ssl_context.options &= ~ssl.OP_NO_SSLv3
+            #   ssl_context.check_hostname = False
+            #   ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
             #                         'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
             #                         '!eNULL:!MD5'))
             try:
                 ilo = hpilo.Ilo(hostname=ilo_host,
                                 login=ilo_user,
                                 password=ilo_password,
-                                port=ilo_port, timeout=10, ) # ssl_context=ssl_context)
+                                port=ilo_port, timeout=10, )  # ssl_context=ssl_context)
             except hpilo.IloLoginFailed:
                 print("ILO login failed")
                 self.return_error()
@@ -326,14 +315,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             # get product and server name
             try:
                 self.product_name = ilo.get_product_name()
-            except:
+            except Exception:
                 self.product_name = "Unknown HP Server"
 
             try:
                 self.server_name = ilo.get_server_name()
                 if self.server_name == "":
                     self.server_name = ilo_host
-            except:
+            except Exception:
                 self.server_name = ilo_host
 
             # get health, mod by n27051538
@@ -351,7 +340,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 running = ilo.get_host_power_status()
                 self.gauges['running'].labels(product_name=self.product_name, server_name=self.server_name).set(
                     translate(running))
-            except:
+            except Exception:
                 pass
 
             # for iLO3 patch network
@@ -374,18 +363,18 @@ class RequestHandler(BaseHTTPRequestHandler):
                 fw_version = ilo.get_fw_version()["firmware_version"]
                 self.gauges['firmware_version'].labels(product_name=self.product_name,
                                                        server_name=self.server_name).set(fw_version)
-            except:
+            except Exception:
                 pass
 
             try:
                 oa_info = ilo.get_oa_info()
                 self.gauges['oa_info'].labels(product_name=self.product_name,
                                               server_name=self.server_name,
-                                              oa_ip=oa_info.get('ipaddress',''),
-                                              encl=oa_info.get('encl',''),
-                                              location_bay=oa_info.get('location',''),
+                                              oa_ip=oa_info.get('ipaddress', ''),
+                                              encl=oa_info.get('encl', ''),
+                                              location_bay=oa_info.get('location', ''),
                                               ).set(0)
-            except:
+            except Exception:
                 pass
 
             # get the amount of time the request took
@@ -450,8 +439,8 @@ class ILOExporterServer(object):
                         p = psutil.Process(pid)
                         if p.status() == psutil.STATUS_ZOMBIE:
                             # print("wait for pid: " + str(pid) + " p.status: " + str(  p.status()  )  ) # running, sleeping, zombie
-                            if (pid != 0):
-                                os.waitid(os.P_PID, pid, os.WEXITED) # terminate zombie
+                            if pid != 0:
+                                os.waitid(os.P_PID, pid, os.WEXITED)  # terminate zombie
                         pid = None
 
         except KeyboardInterrupt:

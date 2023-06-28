@@ -86,6 +86,11 @@ export ilo_port=443
 hpilo-exporter [--address=0.0.0.0 --port=9416 --endpoint="/metrics"]
 ```
 
+### Easy Install bash-script with systemd service (tested on ubuntu)
+```
+bash <(curl -Ls https://raw.githubusercontent.com/hpilo-exporter/hpilo-exporter/master/install.sh)
+```
+
 
 ### Docker
 

@@ -9,7 +9,12 @@ Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus.
  - OA info for Blade servers
  - Server ON status.
   
+## Grafana Dasboard
 
+```
+https://grafana.com/grafana/dashboards/13709-hp-ilo/
+
+```
 ### Gauges
 
 Here are the status code of gauge

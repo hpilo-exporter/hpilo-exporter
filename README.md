@@ -125,15 +125,27 @@ docker run -p 9416:9416 hpilo-exporter:latest --port 9416 --ilo_user my_user --i
 
 ### Docker compose
 
-Here is an example of Docker Compose deployment:
+The easiest way to run this exporter in docker compose is to get compose to pull the latest version directly from github and build it:
 
 ```yml
-hpilo:
+services:
+  hpilo-exporter:
+    build:
+      context: https://github.com/hpilo-exporter/hpilo-exporter.git#main
+    ports:
+      - 9416:9416
+```
+
+Here is a more elaborate example that pulls the docker image from a registry, passes additional arguments to the exporter executable, and uses placement group constraints for compose swarm mode:
+
+```yml
+version: '3'
+services:
+  hpilo-exporter:
     image: my.registry/hpilo-exporter
     ports:
       - 9416:9416
-    command:
-      - '--port=9416'
+    command: ['--port=9416','--endpoint=/metrics','--address=0.0.0.0']
     deploy:
       placement:
         constraints:

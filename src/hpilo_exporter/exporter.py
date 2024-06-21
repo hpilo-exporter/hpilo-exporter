@@ -137,7 +137,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def watch_memory(self):
         memory_values = self.embedded_health.get('memory', {})
-        if memory_values is not None:
+        if memory_values and 'memory_details_summary' in memory_values:
 
             for cpu_idx, cpu in memory_values['memory_details_summary'].items():
                 total_memory_size = 0 if (cpu['total_memory_size'] == 'N/A') else int(cpu['total_memory_size'].split()[0])

@@ -1,35 +1,35 @@
 # HP iLO Metrics Exporter
 
-Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus.  
- - support for Python 3.6.  
- - ilo_user, ilo_password, ilo_port may be preset via environment.  
- - storage health information from iLO (cache, controller, logical drives, physical drives).  
- -  temperature values information from iLO.
- - per-fan and per-power-supply statuses.
- - OA info for Blade servers
- - Server ON status.
+Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus
+
+- support for Python 3 (tested with 3.12)
+- ilo_user, ilo_password, ilo_port may be set by environment variable or by http get parameters
+- storage health information from iLO (cache, controller, logical drives, physical drives)
+- temperature values information from iLO
+- per-fan and per-power-supply statuses.
+- OA info for Blade servers
+- Server ON status
   
 ## Grafana Dasboard
 
-```
-https://grafana.com/grafana/dashboards/13709-hp-ilo/
+<https://grafana.com/grafana/dashboards/13709-hp-ilo/>
 
-```
 ### Gauges
 
 Here are the status code of gauge
-```
+
+```text
 -1 - Absent
  0 - OK
  1 - Degraded
  2 - Dead (Other)
 ```
 
-
 ### Output example
 
 Example of status of your iLO
-```
+
+```text
 health_at_a_glance:
   battery: {status: OK}
   bios_hardware: {status: OK}
@@ -45,7 +45,8 @@ health_at_a_glance:
 ```
 
 The returned output would be:
-```
+
+```text
 hpilo_battery_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
 hpilo_storage_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 1.0
 hpilo_fans_status{product_name="ProLiant BL460c Gen8",server_name="name.fqdn.domain"} 0.0
@@ -69,8 +70,6 @@ hpilo_fan_speed{fan="Fan 7",product_name="ProLiant DL360e Gen8",server_name="nam
 hpilo_power_supply_status{product_name="ProLiant DL360e Gen8",ps="Power Supply 2",server_name="name.fqdn.domain"} 0.0
 hpilo_running_status{product_name="ProLiant DL360e Gen8",server_name="name.fqdn.domain"} 0.0
 hpilo_onboard_administrator_info{encl="c7000name",location_bay="7",oa_ip="192.168.1.1",product_name="ProLiant BL460c Gen8",server_name="name2.fqdn.domain"} 0.0
-
-
 ```
 
 ### Installing
@@ -79,12 +78,14 @@ You can install exporter on the server directly or on separate machine.
 To run, you must have `Python` and `pip` installed.
 
 To install with `pip`:
-```
+
+```shell
 pip install -e $HPILO_EXPORTER_DIR
 ```
 
 Then just:
-```
+
+```shell
 export ilo_user=user
 export ilo_password=password
 export ilo_port=443
@@ -92,35 +93,41 @@ hpilo-exporter [--address=0.0.0.0 --port=9416 --endpoint="/metrics"]
 ```
 
 ### Easy Install bash-script with systemd service (tested on ubuntu)
-```
+
+```shell
 bash <(curl -Ls https://raw.githubusercontent.com/hpilo-exporter/hpilo-exporter/master/install.sh)
 ```
-
 
 ### Docker
 
 To build the image yourself
-```
+
+```shell
 docker build --rm -t hpilo-exporter .
 ```
 
 To run the container
-```
+
+```shell
 docker run -p 9416:9416 hpilo-exporter:latest
 ```
 
-You can then call the web server on the defined endpoint, `/metrics` by default.
-```
-curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1&ilo_port=443&ilo_user=admin&ilo_password=admin'
-```
-or
-```
-curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1'
+Passing argument to the docker run command
+
+```shell
+docker run -p 9416:9416 -e ilo_user=my_user -e ilo_password=my_secret_password hpilo-exporter:latest
 ```
 
-Passing argument to the docker run command
+You can then call the web server on the defined endpoint, `/metrics` by default.
+
+```shell
+curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1&ilo_port=443&ilo_user=admin&ilo_password=admin'
 ```
-docker run -p 9416:9416 hpilo-exporter:latest --port 9416 --ilo_user my_user --ilo_password my_secret_password
+
+or
+
+```shell
+curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1'
 ```
 
 ### Docker compose
@@ -159,6 +166,7 @@ A helm chart is available at [prometheus-helm-addons](https://github.com/IDNT/pr
 ### Prometheus config
 
 Assuming:
+
 - the exporter is available on `http://127.0.0.1:9416`
 - you use same the port,username and password for all your iLO
 - change 127.0.0.1 address to actual address of exporter if prometheus is running on different host  
@@ -184,4 +192,3 @@ Assuming:
     - target_label: __address__
       replacement: 127.0.0.1:9416  # hpilo exporter.
 ```
-

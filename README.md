@@ -192,3 +192,15 @@ Assuming:
     - target_label: __address__
       replacement: 127.0.0.1:9416  # hpilo exporter.
 ```
+
+## Development
+
+The repository contains a devcontainer file which allows you to
+create a new ready to use dev environment.
+Once the container has started, you can start the hpilo-exporter with the following command.
+
+```shell
+make hotreload
+```
+
+The service will automatically restart every time a python file is changed.

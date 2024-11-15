@@ -248,7 +248,9 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def return_error(self):
         self.send_response(500)
+        self.send_header("Content-type", "text/plain")
         self.end_headers()
+        self.wfile.write(bytes("Error(s) detected" + "\n", "utf-8"))
 
     def do_GET(self):  # noqa: C901
         """
@@ -269,143 +271,152 @@ class RequestHandler(BaseHTTPRequestHandler):
         error_detected = False
         query_components = parse_qs(urlparse(self.path).query)
 
-        ilo_host = None
-        ilo_port = None
-        ilo_user = None
-        ilo_password = None
-        try:
-            ilo_host = query_components.get('ilo_host', [''])[0] or os.environ['ilo_host']
-            ilo_user = query_components.get('ilo_user', [''])[0] or os.environ['ilo_user']
-            ilo_password = query_components.get('ilo_password', [''])[0] or os.environ['ilo_password']
-        except KeyError as e:
-            print_err("missing parameter %s" % e)
-            self.return_error()
-            error_detected = True
-        try:
-            ilo_port = int(query_components.get('ilo_port', [''])[0] or os.environ['ilo_port'])
-        except Exception:
-            ilo_port = 443
-
-        if url.path == self.server.endpoint and ilo_host and ilo_user and ilo_password and ilo_port:
-            ilo = None
-            #  ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            #   Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
-            #   ssl_context.options &= ~ssl.OP_NO_SSLv3
-            #   ssl_context.check_hostname = False
-            #   ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
-            #                         'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
-            #                         '!eNULL:!MD5'))
+        if url.path == self.server.endpoint:
+            ilo_host = None
+            ilo_port = None
+            ilo_user = None
+            ilo_password = None
             try:
-                ilo = hpilo.Ilo(hostname=ilo_host,
-                                login=ilo_user,
-                                password=ilo_password,
-                                port=ilo_port, timeout=10, )  # ssl_context=ssl_context)
-            except hpilo.IloLoginFailed:
-                print("ILO login failed")
+                ilo_host = query_components.get('ilo_host', [''])[0] or os.environ['ilo_host']
+                ilo_user = query_components.get('ilo_user', [''])[0] or os.environ['ilo_user']
+                ilo_password = query_components.get('ilo_password', [''])[0] or os.environ['ilo_password']
+            except KeyError as e:
+                print_err("missing parameter %s" % e)
                 self.return_error()
-                return
-            except gaierror:
-                print("ILO invalid address or port")
-                self.return_error()
-                return
-            except hpilo.IloCommunicationError as e:
-                print(e)
-                self.return_error()
-                return
-
-            # get product and server name
+                error_detected = True
             try:
-                self.product_name = ilo.get_product_name()
+                ilo_port = int(query_components.get('ilo_port', [''])[0] or os.environ['ilo_port'])
             except Exception:
-                self.product_name = "Unknown HP Server"
+                ilo_port = 443
 
-            try:
-                self.server_name = ilo.get_server_name()
-                if self.server_name == "":
+            if ilo_host and ilo_user and ilo_password and ilo_port:
+                ilo = None
+                #  ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+                #   Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
+                #   ssl_context.options &= ~ssl.OP_NO_SSLv3
+                #   ssl_context.check_hostname = False
+                #   ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
+                #                         'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
+                #                         '!eNULL:!MD5'))
+                try:
+                    ilo = hpilo.Ilo(hostname=ilo_host,
+                                    login=ilo_user,
+                                    password=ilo_password,
+                                    port=ilo_port, timeout=10, )  # ssl_context=ssl_context)
+                except hpilo.IloLoginFailed:
+                    print("ILO login failed")
+                    self.return_error()
+                    return
+                except gaierror:
+                    print("ILO invalid address or port")
+                    self.return_error()
+                    return
+                except hpilo.IloCommunicationError as e:
+                    print(e)
+                    self.return_error()
+                    return
+
+                # get product and server name
+                try:
+                    self.product_name = ilo.get_product_name()
+                except Exception:
+                    self.product_name = "Unknown HP Server"
+
+                try:
+                    self.server_name = ilo.get_server_name()
+                    if self.server_name == "":
+                        self.server_name = ilo_host
+                except Exception:
                     self.server_name = ilo_host
-            except Exception:
-                self.server_name = ilo_host
 
-            # get health, mod by n27051538
-            self.embedded_health = ilo.get_embedded_health()
-            self.watch_health_at_glance()
-            self.watch_disks()
-            self.watch_temperature()
-            self.watch_fan()
-            self.watch_ps()
-            self.watch_processor()
-            self.watch_memory()
-            self.watch_battery()
+                # get health, mod by n27051538
+                self.embedded_health = ilo.get_embedded_health()
+                self.watch_health_at_glance()
+                self.watch_disks()
+                self.watch_temperature()
+                self.watch_fan()
+                self.watch_ps()
+                self.watch_processor()
+                self.watch_memory()
+                self.watch_battery()
 
-            try:
-                running = ilo.get_host_power_status()
-                self.gauges['running'].labels(product_name=self.product_name, server_name=self.server_name).set(
-                    translate(running))
-            except Exception:
-                pass
+                try:
+                    running = ilo.get_host_power_status()
+                    self.gauges['running'].labels(product_name=self.product_name, server_name=self.server_name).set(
+                        translate(running))
+                except Exception:
+                    pass
 
-            # for iLO3 patch network
-            if ilo.get_fw_version()["management_processor"] == 'iLO3':
-                print_err('Unknown iLO nic status')
-            else:
-                # get nic information
-                for nic_name, nic in self.embedded_health['nic_information'].items():
-                    try:
-                        value = ['OK', 'Disabled', 'Unknown', 'Link Down'].index(nic['status'])
-                    except ValueError:
-                        value = 4
-                        print_err('unrecognised nic status: {}'.format(nic['status']))
+                # for iLO3 patch network
+                if ilo.get_fw_version()["management_processor"] == 'iLO3':
+                    print_err('Unknown iLO nic status')
+                else:
+                    # get nic information
+                    for nic_name, nic in self.embedded_health['nic_information'].items():
+                        try:
+                            value = ['OK', 'Disabled', 'Unknown', 'Link Down'].index(nic['status'])
+                        except ValueError:
+                            value = 4
+                            print_err('unrecognised nic status: {}'.format(nic['status']))
 
-                    self.gauges['nic_status'].labels(product_name=self.product_name, server_name=self.server_name,
-                                                     nic_name=nic_name, ip_address=nic['ip_address']).set(value)
+                        self.gauges['nic_status'].labels(product_name=self.product_name, server_name=self.server_name,
+                                                        nic_name=nic_name, ip_address=nic['ip_address']).set(value)
 
-            # get firmware version
-            try:
-                fw_version = ilo.get_fw_version()["firmware_version"]
-                self.gauges['firmware_version'].labels(product_name=self.product_name,
-                                                       server_name=self.server_name).set(fw_version)
-            except Exception:
-                pass
+                # get firmware version
+                try:
+                    fw_version = ilo.get_fw_version()["firmware_version"]
+                    self.gauges['firmware_version'].labels(product_name=self.product_name,
+                                                        server_name=self.server_name).set(fw_version)
+                except Exception:
+                    pass
 
-            try:
-                oa_info = ilo.get_oa_info()
-                self.gauges['oa_info'].labels(product_name=self.product_name,
-                                              server_name=self.server_name,
-                                              oa_ip=oa_info.get('ipaddress', ''),
-                                              encl=oa_info.get('encl', ''),
-                                              location_bay=oa_info.get('location', ''),
-                                              ).set(0)
-            except Exception:
-                pass
+                try:
+                    oa_info = ilo.get_oa_info()
+                    self.gauges['oa_info'].labels(product_name=self.product_name,
+                                                server_name=self.server_name,
+                                                oa_ip=oa_info.get('ipaddress', ''),
+                                                encl=oa_info.get('encl', ''),
+                                                location_bay=oa_info.get('location', ''),
+                                                ).set(0)
+                except Exception:
+                    pass
 
-            # get the amount of time the request took
-            request_time.observe(time.time() - start_time)
+                # get the amount of time the request took
+                request_time.observe(time.time() - start_time)
 
-            # generate and publish metrics
-            metrics = generate_latest(self.registry)
-            process_metrics = generate_latest(self.process_registry)
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(metrics)
-            self.wfile.write(process_metrics)
+                # generate and publish metrics
+                metrics = generate_latest(self.registry)
+                process_metrics = generate_latest(self.process_registry)
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(bytes(metrics))
+                self.wfile.write(bytes(process_metrics))
 
         elif url.path == '/':
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.end_headers()
-            self.wfile.write("""<html>
+            self.wfile.write(bytes("""<html>
             <head><title>HP iLO Exporter</title></head>
             <body>
             <h1>HP iLO Exporter</h1>
             <p>Visit <a href="/metrics">Metrics</a> to use.</p>
             </body>
-            </html>""")
+            </html>""", "utf-8"))
+
+        elif url.path == '/favicon.ico':
+            self.send_response(404)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(bytes("Not found.\n", "utf-8"))
 
         else:
             if not error_detected:
                 self.send_response(404)
-            self.end_headers()
+                self.send_header("Content-type", "text/plain")
+                self.end_headers()
+                self.wfile.write(bytes("Not found.\n", "utf-8"))
 
 
 class ILOExporterServer(object):

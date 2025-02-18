@@ -29,7 +29,7 @@ def translate(st):
         return 0
     elif st.upper() == 'DEGRADED':
         return 1
-    elif st.upper() == 'ABSENT':
+    elif st.upper() in ['ABSENT', 'NOT INSTALLED']:
         return -1
     else:
         return 2

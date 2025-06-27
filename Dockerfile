@@ -1,4 +1,4 @@
-FROM python:3.12.4-alpine3.20
+FROM python:3.13.3-alpine3.20
 
 # Install psutil - needs linux-headers and build-base with gcc, remove it afterwards by name '.build-steps'. 
 RUN apk update && apk add --no-cache --virtual .build-steps linux-headers build-base && pip install psutil && apk del .build-steps

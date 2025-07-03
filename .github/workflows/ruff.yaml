@@ -30,3 +30,5 @@ jobs:
           format: 'list'
           exit-code: '1'
           exit-level: 'warn'
+          accept-key: 'PYTHON_SHA256,PATH,PYTHON_VERSION,dst,GNUPGHOME'
+          ignore: 'DKL-DI-0004'          

@@ -20,5 +20,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Secure Dockle
-        uses: tmknom/secure-dockle-action@c07e7b3b7abd3b479ccd84762487ebbe78116735 # v0.2.2
+      - uses: goodwithtech/dockle-action@main
+        with:
+          image: 'target'
+          format: 'list'
+          exit-code: '1'
+          exit-level: 'warn'

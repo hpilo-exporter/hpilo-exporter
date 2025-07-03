@@ -1,8 +1,8 @@
-name: reviewdog
+name: Pull Request
 on: [pull_request]
 jobs:
   ruff:
-    name: runner / ruff
+    name: reviewdog (ruff)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -13,3 +13,12 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review # Change reporter.
+  dockle:
+    name: dockle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secure Dockle
+        uses: tmknom/secure-dockle-action@c07e7b3b7abd3b479ccd84762487ebbe78116735 # v0.2.2

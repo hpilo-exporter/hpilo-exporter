@@ -7,7 +7,7 @@ SOURCE_DIR_NAME = "src"
 
 
 def readme():
-    with io.open('README.md', 'r', encoding='utf-8') as f:
+    with io.open("README.md", "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -20,28 +20,31 @@ setup(
     long_description=readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/infinityworks/hpilo-exporter",
-    package_dir={'': SOURCE_DIR_NAME},
-    packages=find_packages(SOURCE_DIR_NAME, exclude=('*.tests',)),
+    package_dir={"": SOURCE_DIR_NAME},
+    packages=find_packages(SOURCE_DIR_NAME, exclude=("*.tests",)),
     include_package_data=True,
     zip_safe=False,
     package_data={},
-    license='MIT',
+    license="MIT",
     classifiers=[
-        'Development Status :: 4 - Beta',
-        'Intended Audience :: System Administrators',
-        'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.10.10',
-        'Programming Language :: Python',
-        'Topic :: Internet :: WWW/HTTP',
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: System Administrators",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10.10",
+        "Programming Language :: Python",
+        "Topic :: Internet :: WWW/HTTP",
     ],
     install_requires=[
         "prometheus-client",
         "python-hpilo",
     ],
+    extras_require={
+        "dev": ["ruff"],
+    },
     entry_points={
-        'console_scripts': [
-            'hpilo-exporter = hpilo_exporter.main:main',
+        "console_scripts": [
+            "hpilo-exporter = hpilo_exporter.main:main",
         ],
-    }
+    },
 )

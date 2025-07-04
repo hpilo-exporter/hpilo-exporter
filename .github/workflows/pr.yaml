@@ -8,8 +8,8 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: benny123tw/action-ruff@v1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: benny123tw/action-ruff@226d241bdf7205e6e048f1407d21bd69a64b7298 # v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review # Change reporter.
@@ -19,12 +19,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Build an image from Dockerfile
         run: |
           docker build -t built-image:scan .
       - name: Run dockle
-        uses: goodwithtech/dockle-action@main
+        uses: goodwithtech/dockle-action@e30e6af832aad6ea7dca2a248d31a85eab6dbd68 # main
         with:
           image: 'built-image:scan'
           format: 'list'

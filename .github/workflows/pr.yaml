@@ -1,0 +1,55 @@
+name: Pull Request
+on: [pull_request]
+jobs:
+  ruff:
+    name: reviewdog (ruff)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: benny123tw/action-ruff@226d241bdf7205e6e048f1407d21bd69a64b7298 # v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review # Change reporter.
+  dockle:
+    name: dockle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Build an image from Dockerfile
+        run: |
+          docker build -t built-image:scan .
+      - name: Run dockle
+        uses: goodwithtech/dockle-action@e30e6af832aad6ea7dca2a248d31a85eab6dbd68 # main
+        with:
+          image: 'built-image:scan'
+          format: 'list'
+          exit-code: '1'
+          exit-level: 'warn'
+          ignore: 'DKL-DI-0004,CIS-DI-0010'
+  pinned-actions:
+    name: pinned-actions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Ensure SHA pinned actions
+        uses: zgosalvez/github-actions-ensure-sha-pinned-actions@25ed13d0628a1601b4b44048e63cc4328ed03633 # v3
+  secrets-check:
+    name: secrets check (trufflehog)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      with:
+        fetch-depth: 0
+    - name: Secret Scanning
+      uses: trufflesecurity/trufflehog@6641d4ba5b684fffe195b9820345de1bf19f3181 # v3.89.2
+      with:
+        extra_args: --results=verified,unknown

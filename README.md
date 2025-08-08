@@ -2,7 +2,7 @@
 
 Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus
 
-- support for Python 3 (tested with 3.12)
+- support for Python 3 (tested with 3.13)
 - ilo_user, ilo_password, ilo_port may be set by environment variable or by http get parameters
 - storage health information from iLO (cache, controller, logical drives, physical drives)
 - temperature values information from iLO

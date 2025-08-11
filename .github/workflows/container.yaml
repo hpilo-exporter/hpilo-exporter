@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Build & push Docker image
-        uses: mr-smithers-excellent/docker-build-push@d340da11223063b221f873be135aaddd8aba52c5 # v6
+        uses: mr-smithers-excellent/docker-build-push@16094d9627df93cfe14f2d51d0c4a501d57aa0ab # v6
         with:
           image: hpilo-exporter
           registry: ghcr.io

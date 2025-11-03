@@ -5,5 +5,5 @@ prometheus_client==0.22.1
 psutil==7.1.2
 pyproject_hooks==1.2.0
 python-hpilo==4.4.3
-ruff==0.14.2
+ruff==0.14.3
 setuptools==80.9.0

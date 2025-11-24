@@ -8,7 +8,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4
       - uses: benny123tw/action-ruff@226d241bdf7205e6e048f1407d21bd69a64b7298 # v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4
       - name: Build an image from Dockerfile
         run: |
           docker build -t built-image:scan .
@@ -37,7 +37,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4
       - name: Ensure SHA pinned actions
         uses: zgosalvez/github-actions-ensure-sha-pinned-actions@9e9574ef04ea69da568d6249bd69539ccc704e74 # v3
   secrets-check:
@@ -46,7 +46,7 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4
       with:
         fetch-depth: 0
     - name: Secret Scanning

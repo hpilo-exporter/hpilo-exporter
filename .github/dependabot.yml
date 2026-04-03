@@ -17,7 +17,20 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "pip"
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      pip-deps:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+

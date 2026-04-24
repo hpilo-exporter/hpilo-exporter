@@ -1,4 +1,4 @@
-build==1.4.3
+build==1.4.4
 -e git+ssh://git@github.com/hpilo-exporter/hpilo-exporter.git@9c42b6e7bb5a6d8839c4ff753dc6637d7df7ff1a#egg=hpilo_exporter
 packaging==26.1
 prometheus_client==0.25.0

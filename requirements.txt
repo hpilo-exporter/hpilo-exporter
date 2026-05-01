@@ -1,9 +1,9 @@
-build==1.4.4
+build==1.5.0
 -e git+ssh://git@github.com/hpilo-exporter/hpilo-exporter.git@9c42b6e7bb5a6d8839c4ff753dc6637d7df7ff1a#egg=hpilo_exporter
-packaging==26.1
+packaging==26.2
 prometheus_client==0.25.0
 psutil==7.2.2
 pyproject_hooks==1.2.0
 python-hpilo==4.4.3
-ruff==0.15.11
+ruff==0.15.12
 setuptools==82.0.1

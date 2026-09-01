@@ -9,6 +9,7 @@ Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus
 - per-fan and per-power-supply statuses.
 - OA info for Blade servers
 - Server ON status
+- Local iLO user accounts, privileges, and login/logout history from the iLO Event Log (IEL)
   
 ## Grafana Dasboard
 
@@ -70,6 +71,42 @@ hpilo_fan_speed{fan="Fan 7",product_name="ProLiant DL360e Gen8",server_name="nam
 hpilo_power_supply_status{product_name="ProLiant DL360e Gen8",ps="Power Supply 2",server_name="name.fqdn.domain"} 0.0
 hpilo_running_status{product_name="ProLiant DL360e Gen8",server_name="name.fqdn.domain"} 0.0
 hpilo_onboard_administrator_info{encl="c7000name",location_bay="7",oa_ip="192.168.1.1",product_name="ProLiant BL460c Gen8",server_name="name2.fqdn.domain"} 0.0
+```
+
+### Users and login history
+
+The scrape credential (`ilo_user`) is only used to log into iLO. These metrics report the **local accounts on the iLO** and **login-related lines from the iLO Event Log (IEL)**.
+
+The scrape user needs **Administer User Accounts** (admin) to list accounts. Viewing the IEL typically only needs login privilege. Missing privilege sets `hpilo_user_scrape_success` or `hpilo_login_log_scrape_success` to `0` and does not fail the hardware scrape.
+
+`hpilo_user_login_events` is a **snapshot of the current IEL ring buffer**, not a Prometheus counter. iLO consolidates identical messages (`count`), and clearing the log resets the numbers. Prefer `hpilo_user_last_*_timestamp` for “did this just happen?” alerts.
+
+Each scrape itself logs an XML/RIBCL login for `ilo_user`. Filter that account in Grafana if it drowns out human logins.
+
+```text
+hpilo_user_info{product_name="ProLiant DL360 Gen10",server_name="host.example",user_login="Administrator",user_name="Administrator"} 1.0
+hpilo_user_count{product_name="ProLiant DL360 Gen10",server_name="host.example"} 2.0
+hpilo_user_privilege{privilege="admin",product_name="ProLiant DL360 Gen10",server_name="host.example",user_login="Administrator"} 1.0
+hpilo_user_privilege{privilege="config_ilo",product_name="ProLiant DL360 Gen10",server_name="host.example",user_login="Administrator"} 1.0
+hpilo_user_login_events{method="browser",product_name="ProLiant DL360 Gen10",result="success",server_name="host.example",user_login="Administrator"} 4.0
+hpilo_user_login_events{method="xml",product_name="ProLiant DL360 Gen10",result="success",server_name="host.example",user_login="monitor"} 48.0
+hpilo_user_last_login_timestamp{method="browser",product_name="ProLiant DL360 Gen10",server_name="host.example",source_ip="10.0.0.5",user_login="Administrator"} 1.69356012e+09
+hpilo_user_last_failed_login_timestamp{method="ssh",product_name="ProLiant DL360 Gen10",server_name="host.example",source_ip="10.0.0.9",user_login="unknown"} 1.69355900e+09
+hpilo_user_scrape_success{product_name="ProLiant DL360 Gen10",server_name="host.example"} 1.0
+hpilo_login_log_scrape_success{product_name="ProLiant DL360 Gen10",server_name="host.example"} 1.0
+```
+
+Useful queries:
+
+```promql
+# local accounts
+hpilo_user_info
+
+# who has admin on iLO
+hpilo_user_privilege{privilege="admin"} == 1
+
+# failed login in the last hour (iLO clock, treated as exporter local time)
+time() - hpilo_user_last_failed_login_timestamp < 3600
 ```
 
 ### Installing

@@ -5,9 +5,11 @@ Pulls data from specified iLO and presents as Prometheus metrics
 from __future__ import print_function
 import sys
 
-# import ssl
+import ssl
 import time
 import os
+import re
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse  # quote_plus,
 from socketserver import ThreadingMixIn
@@ -27,6 +29,28 @@ def print_err(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+def make_ilo_ssl_context():
+    """SSL context that can talk to old iLO firmware (self-signed, TLS 1.0/1.2, weak ciphers)."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.minimum_version = ssl.TLSVersion.TLSv1
+    except (AttributeError, ValueError):
+        pass
+    try:
+        ctx.set_ciphers("ALL:@SECLEVEL=0")
+    except ssl.SSLError:
+        ctx.set_ciphers(
+            "ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:"
+            "ECDH+HIGH:DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:"
+            "RSA+3DES:RC4-SHA:!aNULL:!eNULL:!MD5"
+        )
+    if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
+        ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT
+    return ctx
+
+
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     max_children = 30
     timeout = 30
@@ -41,6 +65,146 @@ def translate(st):
         return -1
     else:
         return 2
+
+
+def _as_bool_int(value):
+    if value is True:
+        return 1
+    if value is False or value is None:
+        return 0
+    return 1 if str(value).strip().upper() in ("TRUE", "Y", "YES", "1", "ENABLED") else 0
+
+
+def parse_ilo_timestamp(value):
+    """Parse iLO event-log timestamps to a unix epoch, or None."""
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text or text.upper().startswith("[NOT SET]"):
+        return None
+    for fmt in ("%m/%d/%Y %H:%M:%S", "%m/%d/%Y %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return time.mktime(datetime.strptime(text, fmt).timetuple())
+        except ValueError:
+            continue
+    return None
+
+
+_PRIV_LABELS = {
+    "admin_priv": "admin",
+    "config_ilo_priv": "config_ilo",
+    "remote_cons_priv": "remote_console",
+    "reset_server_priv": "reset_server",
+    "virtual_media_priv": "virtual_media",
+    "login_priv": "login",
+}
+
+_METHOD_ALIASES = {
+    "browser": "browser",
+    "ssh": "ssh",
+    "xml": "xml",
+    "ribcl": "xml",
+    "remote console": "remote_console",
+    "ilo rbsu": "rbsu",
+    "cli": "cli",
+}
+
+_METHOD_EVENT_RE = re.compile(
+    r"^(?P<failed>Failed\s+)?"
+    r"(?P<method>Browser|SSH|XML|RIBCL|Remote Console|iLO RBSU|CLI)\s+"
+    r"(?P<action>login|logout)\s*[:\-?]?\s*"
+    r"(?:IP\s*Address\s*:\s*)?"
+    r"(?P<rest>.*)$",
+    re.IGNORECASE,
+)
+
+_ILO_USER_EVENT_RE = re.compile(
+    r"^iLO user\s+(?P<user>.+?)\s+logged\s+(?P<action>in|out)\b"
+    r"(?:\s+from\s+(?P<ip>\S+))?",
+    re.IGNORECASE,
+)
+
+_FAILED_LOGIN_RE = re.compile(
+    r"^Failed login(?: attempt)?(?:\s+from\s+(?P<ip>\S+))?",
+    re.IGNORECASE,
+)
+
+_IP_RE = re.compile(
+    r"((?:\d{1,3}\.){3}\d{1,3}|(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4})"
+)
+
+
+def _extract_user_and_ip(rest):
+    rest = (rest or "").strip(" .")
+    if not rest:
+        return "", ""
+    ip = ""
+    ip_match = _IP_RE.search(rest)
+    if ip_match:
+        ip = ip_match.group(1).rstrip(".)")
+    user = ""
+    if " - " in rest:
+        user = rest.split(" - ", 1)[0].strip()
+    elif ip_match and ip_match.start() > 0:
+        user = rest[: ip_match.start()].strip(" :-")
+    elif not ip_match:
+        user = rest
+    return user, ip
+
+
+def parse_login_event(description):
+    """
+    Parse an iLO Event Log description into a login-related event.
+
+    Returns dict with keys user, method, result, source_ip, or None.
+    result is one of: success, failure, logout.
+    """
+    text = (description or "").strip().rstrip(".")
+    if not text:
+        return None
+
+    match = _METHOD_EVENT_RE.match(text)
+    if match:
+        user, ip = _extract_user_and_ip(match.group("rest"))
+        method = _METHOD_ALIASES.get(match.group("method").lower(), "unknown")
+        if match.group("failed"):
+            result = "failure"
+        elif match.group("action").lower() == "logout":
+            result = "logout"
+        else:
+            result = "success"
+        return {
+            "user": user or "unknown",
+            "method": method,
+            "result": result,
+            "source_ip": ip,
+        }
+
+    match = _ILO_USER_EVENT_RE.match(text)
+    if match:
+        ip = (match.group("ip") or "").rstrip(".)")
+        action = match.group("action").lower()
+        return {
+            "user": (match.group("user") or "unknown").strip(),
+            "method": "unknown",
+            "result": "success" if action == "in" else "logout",
+            "source_ip": ip,
+        }
+
+    match = _FAILED_LOGIN_RE.match(text)
+    if match:
+        ip = (match.group("ip") or "").rstrip(".)")
+        if not ip:
+            ip_match = _IP_RE.search(text)
+            ip = ip_match.group(1).rstrip(".)") if ip_match else ""
+        return {
+            "user": "unknown",
+            "method": "unknown",
+            "result": "failure",
+            "source_ip": ip,
+        }
+
+    return None
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -247,6 +411,60 @@ class RequestHandler(BaseHTTPRequestHandler):
                 ["product_name", "server_name", "oa_ip", "encl", "location_bay"],
                 registry=self.registry,
             ),
+            "user_info": Gauge(
+                self.P + "user_info",
+                "Local iLO user account (1 = present)",
+                ["product_name", "server_name", "user_login", "user_name"],
+                registry=self.registry,
+            ),
+            "user_count": Gauge(
+                self.P + "user_count",
+                "Number of local iLO user accounts",
+                ["product_name", "server_name"],
+                registry=self.registry,
+            ),
+            "user_privilege": Gauge(
+                self.P + "user_privilege",
+                "iLO user privilege flag (1 = granted, 0 = denied)",
+                ["product_name", "server_name", "user_login", "privilege"],
+                registry=self.registry,
+            ),
+            "user_scrape_success": Gauge(
+                self.P + "user_scrape_success",
+                "1 if local iLO user inventory was scraped, else 0",
+                ["product_name", "server_name"],
+                registry=self.registry,
+            ),
+            "user_login_events": Gauge(
+                self.P + "user_login_events",
+                "Login-related events currently present in the iLO event log (IEL snapshot, not a counter)",
+                ["product_name", "server_name", "user_login", "method", "result"],
+                registry=self.registry,
+            ),
+            "user_last_login_timestamp": Gauge(
+                self.P + "user_last_login_timestamp",
+                "Unix timestamp of the most recent successful iLO login in the IEL",
+                ["product_name", "server_name", "user_login", "method", "source_ip"],
+                registry=self.registry,
+            ),
+            "user_last_logout_timestamp": Gauge(
+                self.P + "user_last_logout_timestamp",
+                "Unix timestamp of the most recent iLO logout in the IEL",
+                ["product_name", "server_name", "user_login", "method", "source_ip"],
+                registry=self.registry,
+            ),
+            "user_last_failed_login_timestamp": Gauge(
+                self.P + "user_last_failed_login_timestamp",
+                "Unix timestamp of the most recent failed iLO login in the IEL",
+                ["product_name", "server_name", "user_login", "method", "source_ip"],
+                registry=self.registry,
+            ),
+            "login_log_scrape_success": Gauge(
+                self.P + "login_log_scrape_success",
+                "1 if iLO event log login events were scraped, else 0",
+                ["product_name", "server_name"],
+                registry=self.registry,
+            ),
         }
         BaseHTTPRequestHandler.__init__(self, request, client_address, server)
 
@@ -448,6 +666,119 @@ class RequestHandler(BaseHTTPRequestHandler):
                                 pd_key = pd_key + 1
                         ld_key = ld_key + 1
 
+    def _host_labels(self):
+        return {"product_name": self.product_name, "server_name": self.server_name}
+
+    def watch_users(self, ilo):
+        host = self._host_labels()
+        users = None
+        try:
+            users = ilo.get_all_user_info()
+        except Exception as e:
+            print_err("get_all_user_info failed: {}".format(e))
+            try:
+                logins = ilo.get_all_users() or []
+                users = {
+                    login: {"user_login": login, "user_name": login} for login in logins
+                }
+            except Exception as e2:
+                print_err("get_all_users failed: {}".format(e2))
+                self.gauges["user_scrape_success"].labels(**host).set(0)
+                return
+
+        if isinstance(users, list):
+            users = {
+                u.get("user_login"): u
+                for u in users
+                if isinstance(u, dict) and u.get("user_login")
+            }
+        if not isinstance(users, dict):
+            users = {}
+
+        self.gauges["user_count"].labels(**host).set(len(users))
+        for login, info in users.items():
+            if not login:
+                continue
+            if not isinstance(info, dict):
+                info = {"user_login": login}
+            user_name = info.get("user_name") or login
+            self.gauges["user_info"].labels(
+                user_login=login, user_name=user_name, **host
+            ).set(1)
+            for key, value in info.items():
+                if not str(key).endswith("_priv"):
+                    continue
+                privilege = _PRIV_LABELS.get(key, str(key)[: -len("_priv")])
+                self.gauges["user_privilege"].labels(
+                    user_login=login, privilege=privilege, **host
+                ).set(_as_bool_int(value))
+        self.gauges["user_scrape_success"].labels(**host).set(1)
+
+    def watch_login_logs(self, ilo):
+        host = self._host_labels()
+        try:
+            events = ilo.get_ilo_event_log() or []
+        except Exception as e:
+            print_err("get_ilo_event_log failed: {}".format(e))
+            self.gauges["login_log_scrape_success"].labels(**host).set(0)
+            return
+
+        if isinstance(events, dict):
+            events = events.get("event") or [events]
+        if not isinstance(events, list):
+            events = []
+
+        counts = {}
+        last_by_result = {"success": {}, "logout": {}, "failure": {}}
+
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            parsed = parse_login_event(event.get("description") or "")
+            if not parsed:
+                continue
+            user = parsed["user"] or "unknown"
+            method = parsed["method"] or "unknown"
+            result = parsed["result"]
+            ip = parsed["source_ip"] or ""
+            try:
+                n = int(event.get("count") or 1)
+            except (TypeError, ValueError):
+                n = 1
+            key = (user, method, result)
+            counts[key] = counts.get(key, 0) + n
+
+            ts = parse_ilo_timestamp(event.get("last_update")) or parse_ilo_timestamp(
+                event.get("initial_update")
+            )
+            if ts is None:
+                continue
+            dest = last_by_result.get(result)
+            if dest is None:
+                continue
+            prev = dest.get(user)
+            if prev is None or ts >= prev[0]:
+                dest[user] = (ts, method, ip)
+
+        for (user, method, result), n in counts.items():
+            self.gauges["user_login_events"].labels(
+                user_login=user, method=method, result=result, **host
+            ).set(n)
+
+        gauge_by_result = {
+            "success": "user_last_login_timestamp",
+            "logout": "user_last_logout_timestamp",
+            "failure": "user_last_failed_login_timestamp",
+        }
+        for result, per_user in last_by_result.items():
+            gauge_name = gauge_by_result[result]
+            for user, (ts, method, ip) in per_user.items():
+                self.gauges[gauge_name].labels(
+                    user_login=user, method=method, source_ip=ip, **host
+                ).set(ts)
+
+        self.gauges["login_log_scrape_success"].labels(**host).set(1)
+
     def return_error(self):
         self.send_response(500)
         self.send_header("Content-type", "text/plain")
@@ -505,21 +836,16 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if ilo_host and ilo_user and ilo_password and ilo_port:
                 ilo = None
-                #  ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-                #   Sadly, ancient iLO's aren't dead yet, so let's enable sslv3 by default
-                #   ssl_context.options &= ~ssl.OP_NO_SSLv3
-                #   ssl_context.check_hostname = False
-                #   ssl_context.set_ciphers(('ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
-                #                         'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
-                #                         '!eNULL:!MD5'))
                 try:
                     ilo = hpilo.Ilo(
                         hostname=ilo_host,
                         login=ilo_user,
                         password=ilo_password,
                         port=ilo_port,
-                        timeout=10,
-                    )  # ssl_context=ssl_context)
+                        timeout=30,
+                        ssl_verify=False,
+                        ssl_context=make_ilo_ssl_context(),
+                    )
                 except hpilo.IloLoginFailed:
                     print("ILO login failed")
                     self.return_error()
@@ -546,70 +872,89 @@ class RequestHandler(BaseHTTPRequestHandler):
                 except Exception:
                     self.server_name = ilo_host
 
-                # get health, mod by n27051538
-                self.embedded_health = ilo.get_embedded_health()
-                self.watch_health_at_glance()
-                self.watch_disks()
-                self.watch_temperature()
-                self.watch_fan()
-                self.watch_ps()
-                self.watch_processor()
-                self.watch_memory()
-                self.watch_battery()
-
                 try:
-                    running = ilo.get_host_power_status()
-                    self.gauges["running"].labels(
-                        product_name=self.product_name, server_name=self.server_name
-                    ).set(translate(running))
-                except Exception:
-                    pass
+                    # get health, mod by n27051538
+                    self.embedded_health = ilo.get_embedded_health()
+                    self.watch_health_at_glance()
+                    self.watch_disks()
+                    self.watch_temperature()
+                    self.watch_fan()
+                    self.watch_ps()
+                    self.watch_processor()
+                    self.watch_memory()
+                    self.watch_battery()
 
-                # for iLO3 patch network
-                if ilo.get_fw_version()["management_processor"] == "iLO3":
-                    print_err("Unknown iLO nic status")
-                else:
-                    # get nic information
-                    for nic_name, nic in self.embedded_health[
-                        "nic_information"
-                    ].items():
-                        try:
-                            value = ["OK", "Disabled", "Unknown", "Link Down"].index(
-                                nic["status"]
-                            )
-                        except ValueError:
-                            value = 4
-                            print_err(
-                                "unrecognised nic status: {}".format(nic["status"])
-                            )
+                    try:
+                        running = ilo.get_host_power_status()
+                        self.gauges["running"].labels(
+                            product_name=self.product_name, server_name=self.server_name
+                        ).set(translate(running))
+                    except Exception:
+                        pass
 
-                        self.gauges["nic_status"].labels(
+                    # for iLO3 patch network
+                    if ilo.get_fw_version()["management_processor"] == "iLO3":
+                        print_err("Unknown iLO nic status")
+                    else:
+                        # get nic information
+                        nic_information = (self.embedded_health or {}).get(
+                            "nic_information"
+                        ) or {}
+                        for nic_name, nic in nic_information.items():
+                            try:
+                                value = [
+                                    "OK",
+                                    "Disabled",
+                                    "Unknown",
+                                    "Link Down",
+                                ].index(nic["status"])
+                            except ValueError:
+                                value = 4
+                                print_err(
+                                    "unrecognised nic status: {}".format(nic["status"])
+                                )
+
+                            self.gauges["nic_status"].labels(
+                                product_name=self.product_name,
+                                server_name=self.server_name,
+                                nic_name=nic_name,
+                                ip_address=nic["ip_address"],
+                            ).set(value)
+
+                    # get firmware version
+                    try:
+                        fw_version = ilo.get_fw_version()["firmware_version"]
+                        self.gauges["firmware_version"].labels(
+                            product_name=self.product_name, server_name=self.server_name
+                        ).set(fw_version)
+                    except Exception:
+                        pass
+
+                    try:
+                        oa_info = ilo.get_oa_info()
+                        self.gauges["oa_info"].labels(
                             product_name=self.product_name,
                             server_name=self.server_name,
-                            nic_name=nic_name,
-                            ip_address=nic["ip_address"],
-                        ).set(value)
+                            oa_ip=oa_info.get("ipaddress", ""),
+                            encl=oa_info.get("encl", ""),
+                            location_bay=oa_info.get("location", ""),
+                        ).set(0)
+                    except Exception:
+                        pass
 
-                # get firmware version
-                try:
-                    fw_version = ilo.get_fw_version()["firmware_version"]
-                    self.gauges["firmware_version"].labels(
-                        product_name=self.product_name, server_name=self.server_name
-                    ).set(fw_version)
-                except Exception:
-                    pass
-
-                try:
-                    oa_info = ilo.get_oa_info()
-                    self.gauges["oa_info"].labels(
-                        product_name=self.product_name,
-                        server_name=self.server_name,
-                        oa_ip=oa_info.get("ipaddress", ""),
-                        encl=oa_info.get("encl", ""),
-                        location_bay=oa_info.get("location", ""),
-                    ).set(0)
-                except Exception:
-                    pass
+                    # local iLO accounts and IEL login history; independent of hardware scrape
+                    try:
+                        self.watch_users(ilo)
+                    except Exception as e:
+                        print_err("watch_users failed: {}".format(e))
+                    try:
+                        self.watch_login_logs(ilo)
+                    except Exception as e:
+                        print_err("watch_login_logs failed: {}".format(e))
+                except Exception as e:
+                    print_err("ILO scrape failed: {}".format(e))
+                    self.return_error()
+                    return
 
                 # get the amount of time the request took
                 request_time.observe(time.time() - start_time)

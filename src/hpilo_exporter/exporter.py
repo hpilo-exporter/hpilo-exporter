@@ -29,8 +29,24 @@ def print_err(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def make_ilo_ssl_context():
-    """SSL context that can talk to old iLO firmware (self-signed, TLS 1.0/1.2, weak ciphers)."""
+def parse_bool_flag(value, default=False):
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    return text.upper() in ("1", "TRUE", "YES", "Y", "ON", "ENABLED")
+
+
+def make_ilo_ssl_context(verify=False):
+    """Build the SSL context used to talk to iLO.
+
+    When verify is True, use the default client context so certificate
+    and hostname checks apply. When False (default), use a legacy
+    context that can reach old iLO firmware with self-signed certs.
+    """
+    if verify:
+        return ssl.create_default_context()
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -49,6 +65,25 @@ def make_ilo_ssl_context():
     if hasattr(ssl, "OP_LEGACY_SERVER_CONNECT"):
         ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT
     return ctx
+
+
+def normalize_event_log(events):
+    """Turn get_ilo_event_log() output into a list of event dicts.
+
+    Handles a list, a single event dict, and XML-to-dict wrappers such as
+    ``{"event": {...}}`` or ``{"event": [...]}``.
+    """
+    if not events:
+        return []
+    if isinstance(events, dict):
+        events = events["event"] if "event" in events else events
+    if isinstance(events, dict):
+        return [events]
+    if not isinstance(events, list):
+        return []
+    if len(events) == 1 and isinstance(events[0], list):
+        return events[0]
+    return events
 
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
@@ -723,10 +758,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.gauges["login_log_scrape_success"].labels(**host).set(0)
             return
 
-        if isinstance(events, dict):
-            events = events.get("event") or [events]
-        if not isinstance(events, list):
-            events = []
+        events = normalize_event_log(events)
 
         counts = {}
         last_by_result = {"success": {}, "logout": {}, "failure": {}}
@@ -834,6 +866,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 ilo_port = 443
 
+            ssl_verify = parse_bool_flag(
+                query_components.get("ilo_ssl_verify", [""])[0]
+                or os.environ.get("ilo_ssl_verify"),
+                default=False,
+            )
+
             if ilo_host and ilo_user and ilo_password and ilo_port:
                 ilo = None
                 try:
@@ -843,8 +881,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                         password=ilo_password,
                         port=ilo_port,
                         timeout=30,
-                        ssl_verify=False,
-                        ssl_context=make_ilo_ssl_context(),
+                        ssl_verify=ssl_verify,
+                        ssl_context=make_ilo_ssl_context(verify=ssl_verify),
                     )
                 except hpilo.IloLoginFailed:
                     print("ILO login failed")

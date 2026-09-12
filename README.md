@@ -3,7 +3,7 @@
 Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus
 
 - support for Python 3 (tested with 3.13)
-- ilo_user, ilo_password, ilo_port may be set by environment variable or by http get parameters
+- ilo_user, ilo_password, ilo_port, ilo_ssl_verify may be set by environment variable or by http get parameters
 - storage health information from iLO (cache, controller, logical drives, physical drives)
 - temperature values information from iLO
 - per-fan and per-power-supply statuses.
@@ -126,8 +126,12 @@ Then just:
 export ilo_user=user
 export ilo_password=password
 export ilo_port=443
+# Optional: verify the iLO TLS certificate (default is false for self-signed / old firmware)
+# export ilo_ssl_verify=true
 hpilo-exporter [--address=0.0.0.0 --port=9416 --endpoint="/metrics"]
 ```
+
+Certificate verification is off by default because most iLOs ship a self-signed cert. Set `ilo_ssl_verify=true` (environment or query parameter) on hosts with a trusted certificate; that uses the default SSL context instead of the legacy compatibility context.
 
 ### Easy Install bash-script with systemd service (tested on ubuntu)
 
@@ -158,7 +162,7 @@ docker run -p 9416:9416 -e ilo_user=my_user -e ilo_password=my_secret_password h
 You can then call the web server on the defined endpoint, `/metrics` by default.
 
 ```shell
-curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1&ilo_port=443&ilo_user=admin&ilo_password=admin'
+curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1&ilo_port=443&ilo_user=admin&ilo_password=admin&ilo_ssl_verify=true'
 ```
 
 or
@@ -217,6 +221,7 @@ Assuming:
     #ilo_port: ['443']                 # may be set in exporter ENV
     #ilo_user: ['my_ilo_user']         # may be set in exporter ENV
     #ilo_password: ['my_ilo_password'] # may be set in exporter ENV
+    #ilo_ssl_verify: ['true']          # verify iLO TLS certs (default: false)
   static_configs:
     - targets:
       - ilo_fqdn.domain

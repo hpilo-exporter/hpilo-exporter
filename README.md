@@ -3,12 +3,13 @@
 Exporter for HP Server Integrated Lights Out (iLO) information to Prometheus
 
 - support for Python 3 (tested with 3.13)
-- ilo_user, ilo_password, ilo_port may be set by environment variable or by http get parameters
+- ilo_user, ilo_password, ilo_port, ilo_ssl_verify may be set by environment variable or by http get parameters
 - storage health information from iLO (cache, controller, logical drives, physical drives)
 - temperature values information from iLO
 - per-fan and per-power-supply statuses.
 - OA info for Blade servers
 - Server ON status
+- Local iLO user accounts, privileges, and login/logout history from the iLO Event Log (IEL)
   
 ## Grafana Dasboard
 
@@ -72,6 +73,42 @@ hpilo_running_status{product_name="ProLiant DL360e Gen8",server_name="name.fqdn.
 hpilo_onboard_administrator_info{encl="c7000name",location_bay="7",oa_ip="192.168.1.1",product_name="ProLiant BL460c Gen8",server_name="name2.fqdn.domain"} 0.0
 ```
 
+### Users and login history
+
+The scrape credential (`ilo_user`) is only used to log into iLO. These metrics report the **local accounts on the iLO** and **login-related lines from the iLO Event Log (IEL)**.
+
+The scrape user needs **Administer User Accounts** (admin) to list accounts. Viewing the IEL typically only needs login privilege. Missing privilege sets `hpilo_user_scrape_success` or `hpilo_login_log_scrape_success` to `0` and does not fail the hardware scrape.
+
+`hpilo_user_login_events` is a **snapshot of the current IEL ring buffer**, not a Prometheus counter. iLO consolidates identical messages (`count`), and clearing the log resets the numbers. Prefer `hpilo_user_last_*_timestamp` for “did this just happen?” alerts.
+
+Each scrape itself logs an XML/RIBCL login for `ilo_user`. Filter that account in Grafana if it drowns out human logins.
+
+```text
+hpilo_user_info{product_name="ProLiant DL360 Gen10",server_name="host.example",user_login="Administrator",user_name="Administrator"} 1.0
+hpilo_user_count{product_name="ProLiant DL360 Gen10",server_name="host.example"} 2.0
+hpilo_user_privilege{privilege="admin",product_name="ProLiant DL360 Gen10",server_name="host.example",user_login="Administrator"} 1.0
+hpilo_user_privilege{privilege="config_ilo",product_name="ProLiant DL360 Gen10",server_name="host.example",user_login="Administrator"} 1.0
+hpilo_user_login_events{method="browser",product_name="ProLiant DL360 Gen10",result="success",server_name="host.example",user_login="Administrator"} 4.0
+hpilo_user_login_events{method="xml",product_name="ProLiant DL360 Gen10",result="success",server_name="host.example",user_login="monitor"} 48.0
+hpilo_user_last_login_timestamp{method="browser",product_name="ProLiant DL360 Gen10",server_name="host.example",source_ip="10.0.0.5",user_login="Administrator"} 1.69356012e+09
+hpilo_user_last_failed_login_timestamp{method="ssh",product_name="ProLiant DL360 Gen10",server_name="host.example",source_ip="10.0.0.9",user_login="unknown"} 1.69355900e+09
+hpilo_user_scrape_success{product_name="ProLiant DL360 Gen10",server_name="host.example"} 1.0
+hpilo_login_log_scrape_success{product_name="ProLiant DL360 Gen10",server_name="host.example"} 1.0
+```
+
+Useful queries:
+
+```promql
+# local accounts
+hpilo_user_info
+
+# who has admin on iLO
+hpilo_user_privilege{privilege="admin"} == 1
+
+# failed login in the last hour (iLO clock, treated as exporter local time)
+time() - hpilo_user_last_failed_login_timestamp < 3600
+```
+
 ### Installing
 
 You can install exporter on the server directly or on separate machine.
@@ -89,8 +126,12 @@ Then just:
 export ilo_user=user
 export ilo_password=password
 export ilo_port=443
+# Optional: verify the iLO TLS certificate (default is false for self-signed / old firmware)
+# export ilo_ssl_verify=true
 hpilo-exporter [--address=0.0.0.0 --port=9416 --endpoint="/metrics"]
 ```
+
+Certificate verification is off by default because most iLOs ship a self-signed cert. Set `ilo_ssl_verify=true` (environment or query parameter) on hosts with a trusted certificate; that uses the default SSL context instead of the legacy compatibility context.
 
 ### Easy Install bash-script with systemd service (tested on ubuntu)
 
@@ -180,6 +221,7 @@ Assuming:
     #ilo_port: ['443']                 # may be set in exporter ENV
     #ilo_user: ['my_ilo_user']         # may be set in exporter ENV
     #ilo_password: ['my_ilo_password'] # may be set in exporter ENV
+    #ilo_ssl_verify: ['true']          # verify iLO TLS certs (default: false)
   static_configs:
     - targets:
       - ilo_fqdn.domain

@@ -37,6 +37,7 @@ setup(
     ],
     install_requires=[
         "prometheus-client",
+        "psutil",
         "python-hpilo",
     ],
     extras_require={

@@ -162,7 +162,7 @@ docker run -p 9416:9416 -e ilo_user=my_user -e ilo_password=my_secret_password h
 You can then call the web server on the defined endpoint, `/metrics` by default.
 
 ```shell
-curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1&ilo_port=443&ilo_user=admin&ilo_password=admin&ilo_ssl_verify=true'
+curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1&ilo_port=443&ilo_user=admin&ilo_password=admin'
 ```
 
 or

@@ -707,12 +707,14 @@ class RequestHandler(BaseHTTPRequestHandler):
     def watch_users(self, ilo):
         host = self._host_labels()
         users = None
+        privileges_available = True
         try:
             users = ilo.get_all_user_info()
         except Exception as e:
             print_err("get_all_user_info failed: {}".format(e))
             try:
                 logins = ilo.get_all_users() or []
+                privileges_available = False
                 users = {
                     login: {"user_login": login, "user_name": login} for login in logins
                 }
@@ -747,7 +749,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.gauges["user_privilege"].labels(
                     user_login=login, privilege=privilege, **host
                 ).set(_as_bool_int(value))
-        self.gauges["user_scrape_success"].labels(**host).set(1)
+        self.gauges["user_scrape_success"].labels(**host).set(
+            1 if privileges_available else 0
+        )
 
     def watch_login_logs(self, ilo):
         host = self._host_labels()
@@ -910,6 +914,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                 except Exception:
                     self.server_name = ilo_host
 
+                # Access metrics must still be emitted when hardware collection fails.
+                try:
+                    self.watch_users(ilo)
+                except Exception as e:
+                    print_err("watch_users failed: {}".format(e))
+                    self.gauges["user_scrape_success"].labels(
+                        **self._host_labels()
+                    ).set(0)
+                try:
+                    self.watch_login_logs(ilo)
+                except Exception as e:
+                    print_err("watch_login_logs failed: {}".format(e))
+                    self.gauges["login_log_scrape_success"].labels(
+                        **self._host_labels()
+                    ).set(0)
+
                 try:
                     # get health, mod by n27051538
                     self.embedded_health = ilo.get_embedded_health()
@@ -980,15 +1000,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
 
-                    # local iLO accounts and IEL login history; independent of hardware scrape
-                    try:
-                        self.watch_users(ilo)
-                    except Exception as e:
-                        print_err("watch_users failed: {}".format(e))
-                    try:
-                        self.watch_login_logs(ilo)
-                    except Exception as e:
-                        print_err("watch_login_logs failed: {}".format(e))
                 except Exception as e:
                     print_err("ILO scrape failed: {}".format(e))
                     self.return_error()

@@ -938,21 +938,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                 except Exception:
                     self.server_name = ilo_host
 
-                # Access metrics must still be emitted when hardware collection fails.
-                try:
-                    self.watch_users(ilo)
-                except Exception as e:
-                    print_err("watch_users failed: {}".format(e))
-                    self.gauges["user_scrape_success"].labels(
-                        **self._host_labels()
-                    ).set(0)
-                try:
-                    self.watch_login_logs(ilo)
-                except Exception as e:
-                    print_err("watch_login_logs failed: {}".format(e))
-                    self.gauges["login_log_scrape_success"].labels(
-                        **self._host_labels()
-                    ).set(0)
+                # Opt-in (--user-metrics). Access metrics must still be emitted when hardware collection fails.
+                if getattr(self.server, "user_metrics", False):
+                    try:
+                        self.watch_users(ilo)
+                    except Exception as e:
+                        print_err("watch_users failed: {}".format(e))
+                        self.gauges["user_scrape_success"].labels(
+                            **self._host_labels()
+                        ).set(0)
+                    try:
+                        self.watch_login_logs(ilo)
+                    except Exception as e:
+                        print_err("watch_login_logs failed: {}".format(e))
+                        self.gauges["login_log_scrape_success"].labels(
+                            **self._host_labels()
+                        ).set(0)
 
                 # Always emitted: 0 = hardware scrape ok, 1 = hardware scrape failed.
                 self.gauges["hardware_scrape_error"].labels(
@@ -1089,10 +1090,13 @@ class ILOExporterServer(object):
     Basic server implementation that exposes metrics to Prometheus
     """
 
-    def __init__(self, address="0.0.0.0", port=8080, endpoint="/metrics"):
+    def __init__(
+        self, address="0.0.0.0", port=8080, endpoint="/metrics", user_metrics=False
+    ):
         self._address = address
         self._port = port
         self.endpoint = endpoint
+        self.user_metrics = user_metrics
 
     def print_info(self):
         print_err(
@@ -1107,6 +1111,7 @@ class ILOExporterServer(object):
 
         server = ThreadingHTTPServer((self._address, self._port), RequestHandler)
         server.endpoint = self.endpoint
+        server.user_metrics = self.user_metrics
 
         pid = None
         try:

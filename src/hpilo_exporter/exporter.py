@@ -509,7 +509,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             ),
             "hardware_scrape_success": Gauge(
                 self.P + "hardware_scrape_success",
-                "1 if iLO hardware health metrics were scraped, else 0",
+                "1 if the iLO hardware scrape failed, 0 if it succeeded",
                 ["product_name", "server_name"],
                 registry=self.registry,
             ),
@@ -954,6 +954,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                         **self._host_labels()
                     ).set(0)
 
+                # Always emitted: 0 = hardware scrape ok, 1 = hardware scrape failed.
+                self.gauges["hardware_scrape_success"].labels(
+                    **self._host_labels()
+                ).set(0)
                 try:
                     # get health, mod by n27051538
                     self._check_budget(ilo)
@@ -1029,16 +1033,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
 
-                    self.gauges["hardware_scrape_success"].labels(
-                        **self._host_labels()
-                    ).set(1)
                 except Exception as e:
                     # Keep the user/login metrics: publish the partial registry
-                    # with hardware_scrape_success=0 instead of a 500.
+                    # with hardware_scrape_success=1 instead of a 500.
                     print_err("ILO hardware scrape failed: {}".format(e))
                     self.gauges["hardware_scrape_success"].labels(
                         **self._host_labels()
-                    ).set(0)
+                    ).set(1)
 
                 # get the amount of time the request took
                 request_time.observe(time.time() - start_time)

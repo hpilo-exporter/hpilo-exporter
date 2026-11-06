@@ -79,7 +79,7 @@ The scrape credential (`ilo_user`) is only used to log into iLO. These metrics r
 
 The scrape user needs **Administer User Accounts** (admin) to list accounts. Viewing the IEL typically only needs login privilege. Missing privilege sets `hpilo_user_scrape_success` or `hpilo_login_log_scrape_success` to `0` and does not fail the hardware scrape.
 
-If hardware collection fails, the exporter still returns HTTP 200 with the user and login metrics, and sets `hpilo_hardware_scrape_success` to `0`. Hardware metrics from that scrape may be missing; alert on `hpilo_hardware_scrape_success == 0`.
+If hardware collection fails, the exporter still returns HTTP 200 with the user and login metrics. `hpilo_hardware_scrape_success` is always emitted: `0` when the hardware scrape succeeded, `1` when it failed. Hardware metrics from a failed scrape may be missing; alert on `hpilo_hardware_scrape_success == 1`.
 
 `hpilo_user_login_events` is a **snapshot of the current IEL ring buffer**, not a Prometheus counter. iLO consolidates identical messages (`count`), and clearing the log resets the numbers. Prefer `hpilo_user_last_*_timestamp` for “did this just happen?” alerts.
 

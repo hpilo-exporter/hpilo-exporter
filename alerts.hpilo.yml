@@ -14,7 +14,7 @@ groups:
 
       # exporter stays up (HTTP 200) when hardware collection fails, so up{} is not enough
       - alert: 'HPiLO hardware scrape failed'
-        expr: 'hpilo_hardware_scrape_success{job="hpilo"} == 1'
+        expr: 'hpilo_hardware_scrape_error{job="hpilo"} == 1'
         for: 10m
         labels:
           severity: 'warning'

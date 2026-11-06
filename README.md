@@ -75,6 +75,8 @@ hpilo_onboard_administrator_info{encl="c7000name",location_bay="7",oa_ip="192.16
 
 ### Users and login history
 
+These metrics are **disabled by default**. Enable them by starting the exporter with `--user-metrics`. Metrics are only exported when the flag is set.
+
 The scrape credential (`ilo_user`) is only used to log into iLO. These metrics report the **local accounts on the iLO** and **login-related lines from the iLO Event Log (IEL)**.
 
 The scrape user needs **Administer User Accounts** (admin) to list accounts. Viewing the IEL typically only needs login privilege. Missing privilege sets `hpilo_user_scrape_success` or `hpilo_login_log_scrape_success` to `0` and does not fail the hardware scrape.

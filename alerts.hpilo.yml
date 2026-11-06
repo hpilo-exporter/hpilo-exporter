@@ -12,6 +12,16 @@ groups:
           title: 'HPiLO exporter'
           description: 'HPiLO exporter seems down.'
 
+      # exporter stays up (HTTP 200) when hardware collection fails, so up{} is not enough
+      - alert: 'HPiLO hardware scrape failed'
+        expr: 'hpilo_hardware_scrape_success{job="hpilo"} == 0'
+        for: 10m
+        labels:
+          severity: 'warning'
+        annotations:
+          title: 'HPiLO hardware scrape failed'
+          description: 'Hardware metrics could not be collected from {{ $labels.server_name }}; hardware alerts may be missing.'
+
       - alert: 'HPiLO_Temperature'
         expr: 'min(hpilo_temperature_value{job="hpilo"} > 0) without (sensor) > 30'
         for: 3m

@@ -91,6 +91,13 @@ class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     timeout = 30
 
 
+# Per-call iLO socket timeout; capped by the remaining scrape budget.
+ILO_REQUEST_TIMEOUT = 10
+# Total time allowed for one scrape, kept below the 30s scrape_timeout
+# used in the bundled Prometheus examples so partial metrics still arrive.
+ILO_SCRAPE_BUDGET = 25
+
+
 def translate(st):
     if st.upper() in ["OK", "GOOD, IN USE", "ON"]:
         return 0
@@ -710,15 +717,24 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _host_labels(self):
         return {"product_name": self.product_name, "server_name": self.server_name}
 
+    def _check_budget(self, ilo):
+        """Raise if the scrape budget is spent; otherwise cap the next call's timeout."""
+        remaining = self._scrape_deadline - time.time()
+        if remaining <= 0:
+            raise TimeoutError("scrape time budget exhausted")
+        ilo.timeout = min(ILO_REQUEST_TIMEOUT, remaining)
+
     def watch_users(self, ilo):
         host = self._host_labels()
         users = None
         privileges_available = True
         try:
+            self._check_budget(ilo)
             users = ilo.get_all_user_info()
         except Exception as e:
             print_err("get_all_user_info failed: {}".format(e))
             try:
+                self._check_budget(ilo)
                 logins = ilo.get_all_users() or []
                 privileges_available = False
                 users = {
@@ -762,6 +778,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def watch_login_logs(self, ilo):
         host = self._host_labels()
         try:
+            self._check_budget(ilo)
             events = ilo.get_ilo_event_log() or []
         except Exception as e:
             print_err("get_ilo_event_log failed: {}".format(e))
@@ -835,6 +852,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         """
         # this will be used to return the total amount of time the request took
         start_time = time.time()
+        self._scrape_deadline = start_time + ILO_SCRAPE_BUDGET
 
         # Create a metric to track time spent and requests made.
         request_time = Summary(
@@ -890,7 +908,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                         login=ilo_user,
                         password=ilo_password,
                         port=ilo_port,
-                        timeout=30,
+                        timeout=ILO_REQUEST_TIMEOUT,
                         ssl_verify=ssl_verify,
                         ssl_context=make_ilo_ssl_context(verify=ssl_verify),
                     )
@@ -938,6 +956,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
                 try:
                     # get health, mod by n27051538
+                    self._check_budget(ilo)
                     self.embedded_health = ilo.get_embedded_health()
                     self.watch_health_at_glance()
                     self.watch_disks()
@@ -949,6 +968,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     self.watch_battery()
 
                     try:
+                        self._check_budget(ilo)
                         running = ilo.get_host_power_status()
                         self.gauges["running"].labels(
                             product_name=self.product_name, server_name=self.server_name
@@ -957,6 +977,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                         pass
 
                     # for iLO3 patch network
+                    self._check_budget(ilo)
                     if ilo.get_fw_version()["management_processor"] == "iLO3":
                         print_err("Unknown iLO nic status")
                     else:
@@ -987,6 +1008,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
                     # get firmware version
                     try:
+                        self._check_budget(ilo)
                         fw_version = ilo.get_fw_version()["firmware_version"]
                         self.gauges["firmware_version"].labels(
                             product_name=self.product_name, server_name=self.server_name
@@ -995,6 +1017,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                         pass
 
                     try:
+                        self._check_budget(ilo)
                         oa_info = ilo.get_oa_info()
                         self.gauges["oa_info"].labels(
                             product_name=self.product_name,

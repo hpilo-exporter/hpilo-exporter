@@ -507,8 +507,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 ["product_name", "server_name"],
                 registry=self.registry,
             ),
-            "hardware_scrape_success": Gauge(
-                self.P + "hardware_scrape_success",
+            "hardware_scrape_error": Gauge(
+                self.P + "hardware_scrape_error",
                 "1 if the iLO hardware scrape failed, 0 if it succeeded",
                 ["product_name", "server_name"],
                 registry=self.registry,
@@ -955,7 +955,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     ).set(0)
 
                 # Always emitted: 0 = hardware scrape ok, 1 = hardware scrape failed.
-                self.gauges["hardware_scrape_success"].labels(
+                self.gauges["hardware_scrape_error"].labels(
                     **self._host_labels()
                 ).set(0)
                 try:
@@ -1035,9 +1035,9 @@ class RequestHandler(BaseHTTPRequestHandler):
 
                 except Exception as e:
                     # Keep the user/login metrics: publish the partial registry
-                    # with hardware_scrape_success=1 instead of a 500.
+                    # with hardware_scrape_error=1 instead of a 500.
                     print_err("ILO hardware scrape failed: {}".format(e))
-                    self.gauges["hardware_scrape_success"].labels(
+                    self.gauges["hardware_scrape_error"].labels(
                         **self._host_labels()
                     ).set(1)
 

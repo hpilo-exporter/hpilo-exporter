@@ -1,11 +1,15 @@
-FROM python:3.13.3-alpine3.20
+FROM python:3.14.10-alpine3.24
 
-# Install psutil - needs linux-headers and build-base with gcc, remove it afterwards by name '.build-steps'. 
-RUN apk --no-cache --virtual .build-steps add linux-headers build-base && pip install psutil && apk --no-cache del .build-steps
+# Constrain every pip install to the versions pinned in requirements.txt (kept current by Dependabot).
+# Used as constraints, not requirements, so the dev tools listed there (ruff, build) stay out of the image.
+COPY requirements.txt /tmp/requirements.txt
+
+# Install psutil - needs linux-headers and build-base with gcc, remove it afterwards by name '.build-steps'.
+RUN apk --no-cache --virtual .build-steps add linux-headers build-base && pip install -c /tmp/requirements.txt psutil && apk --no-cache del .build-steps
 
 # Install exporter.
 COPY . /usr/src/hpilo_exporter
-RUN pip install -e /usr/src/hpilo_exporter
+RUN pip install -c /tmp/requirements.txt -e /usr/src/hpilo_exporter
 
 ENTRYPOINT ["hpilo-exporter"]
 EXPOSE 9416

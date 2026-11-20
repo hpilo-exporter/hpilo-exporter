@@ -1,4 +1,4 @@
-FROM python:3.14.10-alpine3.24
+FROM python:3.15.2-alpine3.24
 
 # Constrain every pip install to the versions pinned in requirements.txt (kept current by Dependabot).
 # Used as constraints, not requirements, so the dev tools listed there (ruff, build) stay out of the image.

@@ -29,6 +29,13 @@ def main():
         default="/metrics",
         help="endpoint where metrics will be published",
     )
+    parser.add_argument(
+        "--user-metrics",
+        action="store_true",
+        dest="user_metrics",
+        default=False,
+        help="also export iLO local user accounts and login event log metrics",
+    )
 
     args = parser.parse_args()
 

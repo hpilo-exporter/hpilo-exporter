@@ -175,6 +175,33 @@ or
 curl 'http://127.0.0.1:9416/metrics?ilo_host=1.1.1.1'
 ```
 
+#### Adding a custom CA certificate
+
+If your iLOs use certificates signed by an internal CA, extend the image with a Dockerfile that installs your CA certificate into the system trust store. Place the certificate (PEM format, `.crt` extension) next to the Dockerfile:
+
+```Dockerfile
+FROM ghcr.io/hpilo-exporter/hpilo-exporter:latest
+USER root
+
+# Copy your internal CA certificate
+COPY dc-wien-05.crt /usr/local/share/ca-certificates/dc-wien-05.crt
+
+# Alpine CA update
+RUN apk add --no-cache ca-certificates \
+ && update-ca-certificates
+
+USER hpilo_exporter
+```
+
+Build and run the extended image:
+
+```shell
+docker build -t hpilo-exporter-custom-ca .
+docker run -p 9416:9416 hpilo-exporter-custom-ca
+```
+
+Remember to enable certificate verification with `ilo_ssl_verify=true` (see [Prometheus config](#prometheus-config)) if you want the exporter to validate the iLO certificates against the trusted CA.
+
 ### Docker compose
 
 The easiest way to run this exporter in docker compose is to get compose to pull the latest version directly from github and build it:
